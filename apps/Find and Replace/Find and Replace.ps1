@@ -2,7 +2,8 @@
 # The window for Find and Replace. Add the documents (.rtf, .doc, .docx and
 # .txt), then choose what to replace in them: words or phrases everywhere they
 # appear (like Find and Replace in Word), the beginning of each document up to
-# some text, and the ending of each document from some text. A preview shows
+# some text, the ending of each document from some text, and it can delete the
+# sections between two phrases. A preview shows
 # every change first. Then changed copies are saved in a "replaced" folder, or
 # the documents themselves are changed (after a copy of each one is kept in
 # "before replace"). The boxes also understand Word's special codes, such as ^l
@@ -153,6 +154,7 @@ $Defaults = @{
     BeginSource = 'Text'; BeginReplace = ''; BeginFile = ''
     EndOn = $false; EndFind = ''; EndInclude = $false; EndMatchCase = $false; EndWhich = 'Last'
     EndSource = 'Text'; EndReplace = ''; EndFile = ''
+    BetweenOn = $false; BetweenFrom = ''; BetweenTo = ''; BetweenIncludeFrom = $false; BetweenIncludeTo = $false; BetweenMatchCase = $false
 }
 
 function Get-SavedSettings {
@@ -745,7 +747,7 @@ function New-CutSection($Column, [string]$Title, [string]$FindLabel, [string]$Pa
     Add-Row $g $null (New-Strip (New-Label 'If the text is there more than once, use the') $c.Which (New-Label 'one'))
     $c.UseText = New-Radio 'this text (leave it empty to just delete):'
     Add-Row $g (New-Label 'Replace it with:') $c.UseText
-    $c.Replace = New-TextBox 372 3
+    $c.Replace = New-TextBox 372 2
     $c.ReplaceSpecial = New-SpecialButton $c.Replace $script:SpecialNew
     Add-Row $g $null (New-Strip $c.Replace $c.ReplaceSpecial)
     $c.UseFile = New-Radio 'the contents of a document:'
@@ -798,6 +800,8 @@ function Get-UiSettings($Ui) {
                    FindFormat = $Ui.WordsFindFormat.Tag; NewFormat = $Ui.WordsNewFormat.Tag }
         Begin = Get-CutSettings $Ui.Begin
         End   = Get-CutSettings $Ui.End
+        Between = @{ On = $Ui.BetweenOn.Checked; From = $Ui.BetweenFrom.Text; To = $Ui.BetweenTo.Text
+                     IncludeFrom = $Ui.BetweenIncludeFrom.Checked; IncludeTo = $Ui.BetweenIncludeTo.Checked; MatchCase = $Ui.BetweenCase.Checked }
     }
 }
 
@@ -811,15 +815,18 @@ function Update-Last([hashtable]$Last, [hashtable]$S) {
         $Last["${p}On"] = $c.On; $Last["${p}Find"] = $c.Find; $Last["${p}Include"] = $c.Include; $Last["${p}MatchCase"] = $c.MatchCase
         $Last["${p}Which"] = $c.Which; $Last["${p}Source"] = $c.Source; $Last["${p}Replace"] = $c.Replace; $Last["${p}File"] = $c.File
     }
+    $Last.BetweenOn = $S.Between.On; $Last.BetweenFrom = $S.Between.From; $Last.BetweenTo = $S.Between.To
+    $Last.BetweenIncludeFrom = $S.Between.IncludeFrom; $Last.BetweenIncludeTo = $S.Between.IncludeTo; $Last.BetweenMatchCase = $S.Between.MatchCase
 }
 
 # Says what is missing before the preview can be made, or $null when nothing is
 function Get-SettingsProblem([hashtable]$S, [int]$DocCount) {
     if ($DocCount -eq 0) { return 'First add the documents to change: click "Add documents..." or "Add a folder...", or drag them into the list.' }
-    if (-not ($S.Words.On -or $S.Begin.On -or $S.End.On)) { return 'Tick at least one of the three: "Words, phrases or marks", "The beginning" or "The ending".' }
+    if (-not ($S.Words.On -or $S.Begin.On -or $S.End.On -or $S.Between.On)) { return 'Tick at least one of the four: "Words, phrases or marks", "The beginning", "Sections between two phrases" or "The ending".' }
     if ($S.Words.On -and -not $S.Words.Find -and -not (Test-HasFormat $S.Words.FindFormat)) { return 'Type what to find, or click "Format..." to find text by how it looks (or untick "Words, phrases or marks").' }
     if ($S.Begin.On -and -not $S.Begin.Find) { return 'Type the text that the beginning goes up to (or untick "The beginning").' }
     if ($S.End.On -and -not $S.End.Find) { return 'Type the text that the ending starts from (or untick "The ending").' }
+    if ($S.Between.On -and -not ($S.Between.From -and $S.Between.To)) { return 'Type both phrases that the sections are between (or untick "Sections between two phrases").' }
     foreach ($p in @(@('Begin', 'beginning'), @('End', 'ending'))) {
         $c = $S[$p[0]]
         if ($c.On -and $c.Source -eq 'File' -and -not ($c.File -and (Test-Path -LiteralPath $c.File -PathType Leaf))) {
@@ -837,6 +844,7 @@ function Get-SettingsProblem([hashtable]$S, [int]$DocCount) {
         [void]$boxes.Add(@($S.End.Find, 'Find', 'Everything after'))
         if ($S.End.Source -eq 'Text') { [void]$boxes.Add(@($S.End.Replace, 'NewText', 'the new ending')) }
     }
+    if ($S.Between.On) { [void]$boxes.Add(@($S.Between.From, 'Find', 'First phrase')); [void]$boxes.Add(@($S.Between.To, 'Find', 'Last phrase')) }
     foreach ($b in $boxes) {
         $bad = Get-CodeProblem $b[0] $b[1]
         if ($bad) { return """$bad"" in ""$($b[2])"" is not a special code that works there.`n`nThe ""Special"" button lists the codes that do. To use the ^ character itself, type ^^." }
@@ -893,6 +901,22 @@ function Show-MainForm([hashtable]$Last, [string[]]$StartPaths) {
     Add-Row $right $wg
     $ui.WordsGrid = $wg
     $ui.Begin = New-CutSection $right 'The beginning of each document' 'Everything before:' 'Begin'
+    $ui.BetweenOn = New-Check 'Sections between two phrases (deleted, everywhere they appear)' -Bold
+    $ui.BetweenOn.Margin = New-Object System.Windows.Forms.Padding(3, 12, 3, 0)
+    Add-Row $right $ui.BetweenOn
+    $bg = New-Grid 2
+    $bg.Margin = New-Object System.Windows.Forms.Padding(22, 0, 0, 0)
+    Set-LabelColumn $bg
+    $ui.BetweenFrom = New-TextBox 372
+    Add-Row $bg (New-Label 'First phrase:') (New-Strip $ui.BetweenFrom (New-SpecialButton $ui.BetweenFrom $script:SpecialFind))
+    $ui.BetweenTo = New-TextBox 372
+    Add-Row $bg (New-Label 'Last phrase:') (New-Strip $ui.BetweenTo (New-SpecialButton $ui.BetweenTo $script:SpecialFind))
+    $ui.BetweenIncludeFrom = New-Check 'and the first phrase too'
+    $ui.BetweenIncludeTo = New-Check 'and the last phrase too'
+    $ui.BetweenCase = New-Check 'Match case'
+    Add-Row $bg $null (New-Strip $ui.BetweenIncludeFrom $ui.BetweenIncludeTo $ui.BetweenCase)
+    Add-Row $right $bg
+    $ui.BetweenGrid = $bg
     $ui.End = New-CutSection $right 'The ending of each document' 'Everything after:' 'End'
 
     $previewBtn = New-Button 'Preview the changes...' -Bold
@@ -910,10 +934,17 @@ function Show-MainForm([hashtable]$Last, [string[]]$StartPaths) {
     Set-FormatLabel $ui.WordsNewFormat $Last.WordsNewFormat
     Set-CutSection $ui.Begin $Last 'Begin'
     Set-CutSection $ui.End $Last 'End'
+    $ui.BetweenOn.Checked = [bool]$Last.BetweenOn
+    $ui.BetweenFrom.Text = [string]$Last.BetweenFrom
+    $ui.BetweenTo.Text = [string]$Last.BetweenTo
+    $ui.BetweenIncludeFrom.Checked = [bool]$Last.BetweenIncludeFrom
+    $ui.BetweenIncludeTo.Checked = [bool]$Last.BetweenIncludeTo
+    $ui.BetweenCase.Checked = [bool]$Last.BetweenMatchCase
 
     # Greys out what isn't ticked, and keeps the count under the list up to date
     $sync = {
         $ui.WordsGrid.Enabled = $ui.WordsOn.Checked
+        $ui.BetweenGrid.Enabled = $ui.BetweenOn.Checked
         foreach ($c in $ui.Begin, $ui.End) {
             $c.Grid.Enabled = $c.On.Checked
             $c.Replace.Enabled = $c.UseText.Checked
@@ -926,7 +957,7 @@ function Show-MainForm([hashtable]$Last, [string[]]$StartPaths) {
         $removeBtn.Enabled = ($list.SelectedItems.Count -gt 0)
         $clearBtn.Enabled = ($n -gt 0)
     }
-    foreach ($box in @($ui.WordsOn, $ui.Begin.On, $ui.End.On, $ui.Begin.UseText, $ui.Begin.UseFile, $ui.End.UseText, $ui.End.UseFile)) {
+    foreach ($box in @($ui.WordsOn, $ui.BetweenOn, $ui.Begin.On, $ui.End.On, $ui.Begin.UseText, $ui.Begin.UseFile, $ui.End.UseText, $ui.End.UseFile)) {
         $box.Add_CheckedChanged($sync)
     }
     $list.Add_SelectedIndexChanged($sync)
@@ -1005,7 +1036,7 @@ function Show-MainForm([hashtable]$Last, [string[]]$StartPaths) {
     & $sync
     $form.Add_Shown({
         # So that "Special" adds to the end of remembered text, not in front of it
-        foreach ($box in @($ui.WordsFind, $ui.WordsReplace, $ui.Begin.Find, $ui.Begin.Replace, $ui.End.Find, $ui.End.Replace)) { $box.SelectionStart = $box.TextLength }
+        foreach ($box in @($ui.WordsFind, $ui.WordsReplace, $ui.Begin.Find, $ui.Begin.Replace, $ui.BetweenFrom, $ui.BetweenTo, $ui.End.Find, $ui.End.Replace)) { $box.SelectionStart = $box.TextLength }
         if ($list.Items.Count -eq 0) { $addBtn.Focus() } else { $previewBtn.Focus() }
     })
     [void]$form.ShowDialog()

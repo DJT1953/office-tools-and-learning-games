@@ -52,6 +52,7 @@ function New-DocItem([string]$Path) {
 #   Words = @{ On; Find; Replace; MatchCase; WholeWords; FindFormat; NewFormat }
 #   Begin = @{ On; Find; Include; MatchCase; Which ('First' or 'Last'); Source ('Text' or 'File'); Replace; File }
 #   End   = the same as Begin
+#   Between = @{ On; From; To; IncludeFrom; IncludeTo; MatchCase }
 # Without -Apply each document only gets its Preview. With -Apply the changes
 # are made and each document gets its Result. $SaveMode 'Copy' saves the changed
 # documents in a "replaced" folder next to them. 'InPlace' changes the documents
@@ -114,7 +115,7 @@ function Invoke-Documents {
 function New-Preview([string]$Status, [string]$Summary) {
     return [pscustomobject]@{
         Status = $Status; Summary = $Summary; Changes = $false; Segments = (New-Object System.Collections.ArrayList)
-        Begin = $null; End = $null; WordsCount = 0; WordsNote = ''; KeepStart = 0; KeepEnd = 0; Hits = $null }
+        Begin = $null; End = $null; Between = $null; WordsCount = 0; WordsNote = ''; KeepStart = 0; KeepEnd = 0; Hits = $null }
 }
 
 # Status: 'Done', 'None' (nothing to change), 'Skipped' or 'Failed'
@@ -391,6 +392,230 @@ function Get-StyleProblem($Doc, $F) {
 }
 
 
+# ---------------------------------------------------------------- sections between two phrases
+
+# Pairs up the places the two phrases were found. Each first phrase goes with
+# the next last phrase after it, and the search goes on after that one, so a
+# first phrase inside a section just goes with it. Each pair is the first
+# phrase's start and end, then the last phrase's start and end. Unclosed counts
+# the first phrases with no last phrase after them.
+function Get-SectionPairs($FromHits, $ToHits) {
+    $pairs = New-Object System.Collections.ArrayList
+    $next = 0
+    $pos = -1
+    $unclosed = 0
+    foreach ($a in $FromHits) {
+        if ($a[0] -lt $pos) { continue }
+        while ($next -lt $ToHits.Count -and $ToHits[$next][0] -lt $a[1]) { $next++ }
+        if ($next -ge $ToHits.Count) { $unclosed++; continue }
+        [void]$pairs.Add(@($a[0], $a[1], $ToHits[$next][0], $ToHits[$next][1]))
+        $pos = $ToHits[$next][1]
+    }
+    return @{ Pairs = $pairs; Unclosed = $unclosed }
+}
+
+function New-BetweenInfo($FromHits, $Found) {
+    return [pscustomobject]@{
+        FromFound = ($FromHits.Count -gt 0); ToFound = ($Found.Pairs.Count -gt 0); Unclosed = $Found.Unclosed
+        Sections = (New-Object System.Collections.ArrayList); Count = 0; Words = 0; Blocked = 0 }
+}
+
+# How long the line or paragraph break is at a position, or just before it (0 for none)
+function Get-BreakAt([scriptblock]$Char, [int]$Pos) {
+    $c = & $Char $Pos
+    if ($c -eq "`r" -and (& $Char ($Pos + 1)) -eq "`n") { return 2 }
+    if ($c -match '^[\r\n\f\v]$') { return 1 }
+    return 0
+}
+
+function Get-BreakBefore([scriptblock]$Char, [int]$Pos) {
+    $c = & $Char ($Pos - 1)
+    if ($c -eq "`n" -and (& $Char ($Pos - 2)) -eq "`r") { return 2 }
+    if ($c -match '^[\r\n\f\v]$') { return 1 }
+    return 0
+}
+
+# Moves the edges of a section about to be deleted, so that the text on each
+# side joins up the way a person would leave it: no doubled spaces, no empty
+# paragraph left behind, and no words run together. $Char gets the character at
+# a position. $First and $TextEnd are the ends of the text that stays. $GrowLeft
+# and $GrowRight say the section may take in more on that side, which it must
+# not do into a phrase that stays. Without $CanJoin (inside a table cell) no
+# mark can go. Returns the start and end.
+function Get-TidySection([int]$Start, [int]$End, [scriptblock]$Char, [int]$First, [int]$TextEnd, [bool]$GrowLeft, [bool]$GrowRight, [bool]$CanJoin) {
+    $blank = '^[ \t]$'
+    $closing = '^[,.;:!?)\]]$'
+    $atStart = ($Start -le $First) -or ((Get-BreakBefore $Char $Start) -gt 0)
+    $atEnd = ($End -ge $TextEnd) -or ((Get-BreakAt $Char $End) -gt 0)
+    if ($atStart -and $atEnd) {
+        # A whole paragraph goes, so its mark goes too
+        if ($GrowRight -and $CanJoin -and $End -lt $TextEnd) { $End += Get-BreakAt $Char $End }
+        return @($Start, $End)
+    }
+    if ($atEnd) {
+        # A section starting with a break keeps that break, and the next one goes
+        # instead, so the paragraph before it keeps its own mark and look
+        $firstBreak = Get-BreakAt $Char $Start
+        if ($firstBreak -and $GrowRight -and $CanJoin) {
+            $Start += $firstBreak
+            if ($End -lt $TextEnd) { $End += Get-BreakAt $Char $End }
+            return @($Start, $End)
+        }
+        while ($GrowLeft -and $Start -gt $First -and (& $Char ($Start - 1)) -match $blank) { $Start-- }
+        return @($Start, $End)
+    }
+    if ($atStart) {
+        while ($GrowRight -and $End -lt $TextEnd -and (& $Char $End) -match $blank) { $End++ }
+        return @($Start, $End)
+    }
+    $left = & $Char ($Start - 1)
+    $right = & $Char $End
+    if ($left -match $blank) {
+        if ($right -match $blank) {
+            # One of the two spaces goes
+            if ($GrowRight) { while ($End -lt $TextEnd -and (& $Char $End) -match $blank) { $End++ } }
+            elseif ($GrowLeft) { while ($Start -gt $First -and (& $Char ($Start - 1)) -match $blank) { $Start-- } }
+        } elseif ($right -match $closing -and $GrowLeft) {
+            while ($Start -gt $First -and (& $Char ($Start - 1)) -match $blank) { $Start-- }
+        }
+        return @($Start, $End)
+    }
+    if (($right -match $blank) -or ($right -match $closing)) { return @($Start, $End) }
+    # Text on both sides would touch: one break or space from the section's edges stays
+    $edge = Get-BreakAt $Char $Start
+    if ($edge) { return @(($Start + $edge), $End) }
+    $edge = Get-BreakBefore $Char $End
+    if ($edge) { return @($Start, ($End - $edge)) }
+    if ((& $Char ($End - 1)) -match $blank) { return @($Start, ($End - 1)) }
+    if ((& $Char $Start) -match $blank) { return @(($Start + 1), $End) }
+    return @($Start, $End)
+}
+
+# Which words or phrases to replace, leaving out those in a section that goes
+function Get-HitsOutsideSections($Hits, $Between) {
+    if (-not $Between -or -not $Between.Sections.Count) { return ,$Hits }
+    $kept = New-Object System.Collections.ArrayList
+    $i = 0
+    foreach ($h in $Hits) {
+        while ($i -lt $Between.Sections.Count -and $Between.Sections[$i].End -le $h[0]) { $i++ }
+        if ($i -lt $Between.Sections.Count -and $Between.Sections[$i].Start -lt $h[1]) { continue }
+        [void]$kept.Add($h)
+    }
+    return ,$kept
+}
+
+# True when a section can be deleted cleanly from a Word document: all of it
+# outside tables (whole tables inside it just go), or all of it in one table cell
+function Test-SectionCanGo($Doc, [int]$Start, [int]$End) {
+    $startInTable = [bool]$Doc.Range($Start, $Start).Information(12)
+    if ($startInTable -ne [bool]$Doc.Range($End, $End).Information(12)) { return $false }
+    if (-not $startInTable) { return $true }
+    # (A range ending at the very start of the next cell still counts as one cell, so compare positions)
+    return ($End -lt $Doc.Range($Start, $Start).Cells.Item(1).Range.End)
+}
+
+# Deletes one section of a Word document. Range.Delete would keep a paragraph
+# mark when a section runs from the middle of one paragraph into the middle of
+# another, leaving a sentence split in two, so the text is cleared instead. That
+# leaves tables behind, so tables wholly inside it go first (Range.Tables also
+# gives the table around a section in a cell), and only Delete can take the last mark.
+function Remove-WordSection($Doc, [int]$Start, [int]$End) {
+    $r = $Doc.Range($Start, $End)
+    foreach ($table in @($r.Tables)) {
+        if ($table.Range.Start -ge $Start -and $table.Range.End -le $End) { $table.Delete() }
+    }
+    if ($r.End -ge $Doc.Content.End) { [void]$r.Delete() } else { $r.Text = '' }
+}
+
+# Finds the sections to delete from the main text of a Word document
+function Get-WordSections($Doc, $Main, [int]$From, [int]$To, [hashtable]$B) {
+    $docEnd = $Main.End
+    $char = {
+        param($Pos)
+        if ($Pos -lt 0 -or $Pos -ge $docEnd) { return '' }
+        $c = [string]$Doc.Range($Pos, $Pos + 1).Text
+        # The end of a table cell comes back as two characters
+        if ($c.Length -gt 1) { return $c.Substring(0, 1) }
+        return $c
+    }
+    $fromHits = Find-WordHits $Main $From $To $B.From $B.MatchCase $false
+    $found = Get-SectionPairs $fromHits (Find-WordHits $Main $From $To $B.To $B.MatchCase $false)
+    $info = New-BetweenInfo $fromHits $found
+    $lastEnd = $From
+    foreach ($pair in $found.Pairs) {
+        $s = $pair[1]; if ($B.IncludeFrom) { $s = $pair[0] }
+        $e = $pair[2]; if ($B.IncludeTo) { $e = $pair[3] }
+        if ($e -le $s) { continue }
+        if (-not (Test-SectionCanGo $Doc $s $e)) { $info.Blocked++; continue }
+        $span = Get-TidySection $s $e $char $From $To $B.IncludeFrom $B.IncludeTo (-not [bool]$Doc.Range($s, $s).Information(12))
+        $s = [Math]::Max($span[0], $lastEnd)
+        $e = $span[1]
+        if ($e -le $s) { continue }
+        # A whole last paragraph goes with the document's last mark, or an empty one stays
+        if ($e -eq $docEnd - 1 -and $To -eq $docEnd - 1 -and ($s -eq $From -or (Get-BreakBefore $char $s) -gt 0)) { $e = $docEnd }
+        [void]$info.Sections.Add([pscustomobject]@{ Start = $s; End = $e })
+        $info.Words += $Doc.Range($s, $e).ComputeStatistics(0)
+        $lastEnd = $e
+    }
+    $info.Count = $info.Sections.Count
+    return $info
+}
+
+# Finds the sections to delete from a .txt file
+function Get-TextSections([string]$Plain, [int]$From, [int]$To, [hashtable]$B) {
+    $char = {
+        param($Pos)
+        if ($Pos -lt 0 -or $Pos -ge $Plain.Length) { return '' }
+        return [string]$Plain[$Pos]
+    }
+    $fromHits = Find-TextHits $Plain $From $To $B.From $B.MatchCase $false
+    $found = Get-SectionPairs $fromHits (Find-TextHits $Plain $From $To $B.To $B.MatchCase $false)
+    $info = New-BetweenInfo $fromHits $found
+    $lastEnd = $From
+    foreach ($pair in $found.Pairs) {
+        $s = $pair[1]; if ($B.IncludeFrom) { $s = $pair[0] }
+        $e = $pair[2]; if ($B.IncludeTo) { $e = $pair[3] }
+        if ($e -le $s) { continue }
+        $span = Get-TidySection $s $e $char $From $To $B.IncludeFrom $B.IncludeTo $true
+        $s = [Math]::Max($span[0], $lastEnd)
+        $e = $span[1]
+        if ($e -le $s) { continue }
+        [void]$info.Sections.Add([pscustomobject]@{ Start = $s; End = $e })
+        $info.Words += Get-WordCount $Plain.Substring($s, $e - $s)
+        $lastEnd = $e
+    }
+    $info.Count = $info.Sections.Count
+    return $info
+}
+
+# One line for the list of documents, saying which sections go
+function Get-BetweenSummary($Info, [hashtable]$B) {
+    $first = '"' + (Get-Short $B.From 24) + '"'
+    $last = '"' + (Get-Short $B.To 24) + '"'
+    if (-not $Info.FromFound) { return "sections: $first not found" }
+    if (-not $Info.ToFound) { return "sections: $last not found after $first" }
+    if ($Info.Count) { $line = (Get-Plural $Info.Count 'section' 'sections') + ' deleted (' + (Get-Plural $Info.Words 'word' 'words') + ')' }
+    else { $line = 'sections: nothing to delete between the phrases' }
+    if ($Info.Blocked) { $line += ' (' + (Get-Plural $Info.Blocked 'section crosses' 'sections cross') + ' the edge of a table, left as is)' }
+    return $line
+}
+
+# The heading and explanation in the preview. Returns $true when there are sections to show.
+function Add-BetweenNote($Plan, [hashtable]$B) {
+    $first = '"' + (Get-Short $B.From 40) + '"'
+    $last = '"' + (Get-Short $B.To 40) + '"'
+    $info = $Plan.Between
+    Add-Seg $Plan 'Title' "SECTIONS BETWEEN $first AND $last"
+    if (-not $info.FromFound) { Add-Seg $Plan 'Note' "$first was not found (or only in a part that is cut off).`n"; return $false }
+    if (-not $info.ToFound) { Add-Seg $Plan 'Note' "$last was not found after $first, so nothing is deleted.`n"; return $false }
+    if ($info.Blocked) { Add-Seg $Plan 'Note' ((Get-Plural $info.Blocked 'section crosses' 'sections cross') + " the edge of a table, so it stays as it is.`n") }
+    if ($info.Unclosed) { Add-Seg $Plan 'Note' ("$first is there " + (Get-Plural $info.Unclosed 'more time' 'more times') + " with no $last after it, and that stays.`n") }
+    if (-not $info.Count) { Add-Seg $Plan 'Note' "There is nothing to delete between the phrases.`n"; return $false }
+    Add-Seg $Plan 'Note' ((Get-Plural $info.Count 'section is' 'sections are') + " deleted:`n")
+    return $true
+}
+
+
 # ---------------------------------------------------------------- Word documents
 
 function Invoke-WordDocument($State, $Item, [hashtable]$S, [bool]$Apply, [string]$SaveMode, [string]$Stamp) {
@@ -442,6 +667,7 @@ function Get-WordPlan($State, $Doc, [hashtable]$S, [bool]$ForPreview) {
     $plan.KeepEnd = $keepEnd
     if ($plan.Begin -and $plan.Begin.Change -and $plan.Begin.Removes) { $plan.Begin.Words = $Doc.Range(0, $plan.Begin.Cut).ComputeStatistics(0) }
     if ($plan.End -and $plan.End.Change -and $plan.End.Removes) { $plan.End.Words = $Doc.Range($plan.End.Cut, $main.End).ComputeStatistics(0) }
+    if ($S.Between.On) { $plan.Between = Get-WordSections $Doc $main $keepStart $keepEnd $S.Between }
 
     $hits = New-Object System.Collections.ArrayList
     if ($S.Words.On) { $plan.WordsNote = Get-StyleProblem $Doc $S.Words.NewFormat }
@@ -450,7 +676,7 @@ function Get-WordPlan($State, $Doc, [hashtable]$S, [bool]$ForPreview) {
         foreach ($story in (Get-WordStories $Doc)) {
             # The last paragraph mark of each part always stays
             if ($story.Where) { $found = Find-WordHits $story.Range $story.Range.Start ($story.Range.End - 1) $S.Words.Find $S.Words.MatchCase $S.Words.WholeWords $replacing $S.Words.FindFormat }
-            else { $found = Find-WordHits $story.Range $keepStart $keepEnd $S.Words.Find $S.Words.MatchCase $S.Words.WholeWords $replacing $S.Words.FindFormat }
+            else { $found = Get-HitsOutsideSections (Find-WordHits $story.Range $keepStart $keepEnd $S.Words.Find $S.Words.MatchCase $S.Words.WholeWords $replacing $S.Words.FindFormat) $plan.Between }
             $plan.WordsCount += $found.Count
             foreach ($h in $found) {
                 if ($hits.Count -ge $script:ShowWords) { break }
@@ -459,7 +685,7 @@ function Get-WordPlan($State, $Doc, [hashtable]$S, [bool]$ForPreview) {
         }
     }
     $plan.Hits = $hits
-    $plan.Changes = ($plan.Begin -and $plan.Begin.Change) -or ($plan.End -and $plan.End.Change) -or ($plan.WordsCount -gt 0)
+    $plan.Changes = ($plan.Begin -and $plan.Begin.Change) -or ($plan.End -and $plan.End.Change) -or ($plan.Between -and $plan.Between.Count -gt 0) -or ($plan.WordsCount -gt 0)
     if ($plan.Changes) { $plan.Status = 'Change' }
     $plan.Summary = Get-PlanSummary $plan $S
     if ($ForPreview) { Add-WordSegments $State $Doc $plan $S }
@@ -689,10 +915,12 @@ function Get-CaseAdapted([string]$Found, [string]$New, [bool]$MatchCase) {
     }
     return $New
 }
-# Makes the changes in the plan. The ending and the beginning are cut off
-# first, then the words and phrases are replaced in what is left, and then
-# the new beginning and ending are put in (so the word replacements don't
-# change them). Returns how many words or phrases were replaced.
+# Makes the changes in the plan. Parts are cut from the back of the document to
+# the front, so the positions of those still to go don't move: the ending, the
+# sections between phrases, then the beginning. The words and phrases are
+# replaced in what is left, and then the new beginning and ending are put in
+# (so the word replacements don't change them). Returns how many words or
+# phrases were replaced.
 function Set-WordChanges($State, $Doc, $Plan, [hashtable]$S) {
     try { $Doc.TrackRevisions = $false } catch {}
     $endLook = $null; $beginLook = $null
@@ -701,6 +929,14 @@ function Set-WordChanges($State, $Doc, $Plan, [hashtable]$S) {
         $endNew = Get-NewPart $State $S.End
         if ($Plan.End.ParaMode -and $endNew.Kind -eq 'Text') { $endLook = Get-BodyLook $Doc ([Math]::Max(0, $Plan.End.Cut - 1)) $false $Plan.KeepStart }
         if ($Plan.End.Removes) { [void]$Doc.Range($Plan.End.Cut, $Doc.Content.End).Delete() }
+    }
+    if ($Plan.Between) {
+        $gone = 0
+        for ($i = $Plan.Between.Sections.Count - 1; $i -ge 0; $i--) {
+            $sec = $Plan.Between.Sections[$i]
+            try { Remove-WordSection $Doc $sec.Start $sec.End; $gone++ } catch {}
+        }
+        $Plan.Between.Count = $gone
     }
     if ($Plan.Begin -and $Plan.Begin.Change) {
         $beginNew = Get-NewPart $State $S.Begin
@@ -864,6 +1100,7 @@ function Get-Short([string]$Text, [int]$Max = 30) {
 function Get-PlanSummary($Plan, [hashtable]$S) {
     $parts = @()
     if ($S.Begin.On) { $parts += Get-CutSummary $Plan.Begin $S.Begin 'beginning' }
+    if ($S.Between.On) { $parts += Get-BetweenSummary $Plan.Between $S.Between }
     if ($S.Words.On) {
         $q = Get-WordsLabel $S.Words 24
         $verb = 'replaced'
@@ -903,6 +1140,20 @@ function Add-WordSegments($State, $Doc, $Plan, [hashtable]$S) {
             Add-NewSeg $State $Plan $S.Begin
             Add-Seg $Plan 'Text' ((Format-ShowText (Get-StoryText $main $b.Cut ([Math]::Min($b.Cut + $script:ShowKept, $Plan.KeepEnd)))) + ' ...')
         }
+    }
+    if ($S.Between.On -and (Add-BetweenNote $Plan $S.Between)) {
+        $shown = 0
+        foreach ($sec in $Plan.Between.Sections) {
+            if ($shown -ge $script:ShowWords) { break }
+            $shown++
+            $stop = [Math]::Min($sec.End, $main.End - 1)
+            $s0 = [Math]::Max($Plan.KeepStart, $sec.Start - $script:ShowAround)
+            $e1 = [Math]::Min($Plan.KeepEnd, $stop + $script:ShowAround)
+            Add-Seg $Plan 'Text' ('... ' + ((Format-ShowText (Get-StoryText $main $s0 $sec.Start)) -replace '\s+', ' '))
+            Add-RangeSegs $Plan $main $sec.Start $stop 'Old'
+            Add-Seg $Plan 'Text' (((Format-ShowText (Get-StoryText $main $stop $e1)) -replace '\s+', ' ') + " ...`n")
+        }
+        if ($Plan.Between.Count -gt $shown) { Add-Seg $Plan 'Gap' ('... and ' + (Format-Count ($Plan.Between.Count - $shown)) + " more`n") }
     }
     if ($S.Words.On) {
         Add-Seg $Plan 'Title' ('WORDS, PHRASES AND MARKS: ' + (Get-WordsLabel $S.Words 40))
@@ -1215,18 +1466,19 @@ function Get-TextPlan($State, $Doc, [hashtable]$S, [bool]$ForPreview) {
     $plan.KeepEnd = $keepEnd
     if ($plan.Begin -and $plan.Begin.Removes -and $plan.Begin.Change) { $plan.Begin.Words = Get-WordCount $text.Substring(0, $plan.Begin.Cut) }
     if ($plan.End -and $plan.End.Removes -and $plan.End.Change) { $plan.End.Words = Get-WordCount $text.Substring($plan.End.Cut) }
+    if ($S.Between.On) { $plan.Between = Get-TextSections $text $keepStart $keepEnd $S.Between }
     $plan.Hits = New-Object System.Collections.ArrayList
     # A .txt file has no formatting: nothing in it can be found by its format or be given one
     if ($S.Words.On -and ((Test-HasFormat $S.Words.FindFormat) -or (Test-KeepsText $S.Words))) { $plan.WordsNote = 'a .txt file has no formatting' }
     elseif ($S.Words.On) {
-        $plan.Hits = Find-TextHits $text $keepStart $keepEnd $S.Words.Find $S.Words.MatchCase $S.Words.WholeWords
+        $plan.Hits = Get-HitsOutsideSections (Find-TextHits $text $keepStart $keepEnd $S.Words.Find $S.Words.MatchCase $S.Words.WholeWords) $plan.Between
         if ($plan.Hits.Count -and (Test-HasFormat $S.Words.NewFormat)) { $plan.WordsNote = 'a .txt file has no formatting, so the new format is left out' }
         # Like the last paragraph mark in Word, the file's last line break always stays
         $n = $plan.Hits.Count
         if ($n -and $plan.Hits[$n - 1][1] -eq $text.Length -and (Test-LineBreak $text ($text.Length - 1))) { $plan.Hits.RemoveAt($n - 1) }
         $plan.WordsCount = $plan.Hits.Count
     }
-    $plan.Changes = ($plan.Begin -and $plan.Begin.Change) -or ($plan.End -and $plan.End.Change) -or ($plan.WordsCount -gt 0)
+    $plan.Changes = ($plan.Begin -and $plan.Begin.Change) -or ($plan.End -and $plan.End.Change) -or ($plan.Between -and $plan.Between.Count -gt 0) -or ($plan.WordsCount -gt 0)
     if ($plan.Changes) { $plan.Status = 'Change' }
     $plan.Summary = Get-PlanSummary $plan $S
     if ($ForPreview) { Add-TextSegments $State $text $plan $S }
@@ -1251,13 +1503,19 @@ function Get-TextResult($State, $Doc, $Plan, [hashtable]$S) {
             [void]$sb.Append($new)
         }
     }
-    $pos = $Plan.KeepStart
+    # The words to replace and the sections to delete, in the order they come
+    $edits = New-Object System.Collections.ArrayList
     if ($S.Words.On) {
-        foreach ($h in $Plan.Hits) {
-            [void]$sb.Append($text.Substring($pos, $h[0] - $pos))
-            [void]$sb.Append((Get-NewText $text.Substring($h[0], $h[1] - $h[0]) $S.Words.Replace $S.Words.MatchCase $eol))
-            $pos = $h[1]
-        }
+        foreach ($h in $Plan.Hits) { [void]$edits.Add([pscustomobject]@{ Start = $h[0]; End = $h[1]; New = (Get-NewText $text.Substring($h[0], $h[1] - $h[0]) $S.Words.Replace $S.Words.MatchCase $eol) }) }
+    }
+    if ($Plan.Between) {
+        foreach ($sec in $Plan.Between.Sections) { [void]$edits.Add([pscustomobject]@{ Start = $sec.Start; End = $sec.End; New = '' }) }
+    }
+    $pos = $Plan.KeepStart
+    foreach ($ed in ($edits | Sort-Object Start)) {
+        [void]$sb.Append($text.Substring($pos, $ed.Start - $pos))
+        [void]$sb.Append($ed.New)
+        $pos = $ed.End
     }
     [void]$sb.Append($text.Substring($pos, $Plan.KeepEnd - $pos))
     if ($Plan.End -and $Plan.End.Change) {
@@ -1290,6 +1548,19 @@ function Add-TextSegments($State, [string]$Text, $Plan, [hashtable]$S) {
             Add-NewSeg $State $Plan $S.Begin
             Add-Seg $Plan 'Text' ((Format-ShowText $Text.Substring($b.Cut, [Math]::Min($script:ShowKept, $Plan.KeepEnd - $b.Cut))) + ' ...')
         }
+    }
+    if ($S.Between.On -and (Add-BetweenNote $Plan $S.Between)) {
+        $shown = 0
+        foreach ($sec in $Plan.Between.Sections) {
+            if ($shown -ge $script:ShowWords) { break }
+            $shown++
+            $s0 = [Math]::Max($Plan.KeepStart, $sec.Start - $script:ShowAround)
+            $e1 = [Math]::Min($Plan.KeepEnd, $sec.End + $script:ShowAround)
+            Add-Seg $Plan 'Text' ('... ' + ((Format-ShowText $Text.Substring($s0, $sec.Start - $s0)) -replace '\s+', ' '))
+            Add-TextRangeSegs $Plan $Text $sec.Start $sec.End 'Old'
+            Add-Seg $Plan 'Text' (((Format-ShowText $Text.Substring($sec.End, $e1 - $sec.End)) -replace '\s+', ' ') + " ...`n")
+        }
+        if ($Plan.Between.Count -gt $shown) { Add-Seg $Plan 'Gap' ('... and ' + (Format-Count ($Plan.Between.Count - $shown)) + " more`n") }
     }
     if ($S.Words.On) {
         Add-Seg $Plan 'Title' ('WORDS, PHRASES AND MARKS: ' + (Get-WordsLabel $S.Words 40))

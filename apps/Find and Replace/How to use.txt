@@ -3,7 +3,7 @@ FIND AND REPLACE - how to use it
 
 WHAT IT DOES
   It changes the text in many .rtf, .doc, .docx and .txt documents at once.
-  It can do three things, on their own or together:
+  It can do four things, on their own or together:
 
   1. WORDS, PHRASES OR MARKS - like Find and Replace in Word. Every "Acme Ltd"
      becomes "Bright Star Group", for example. It also works on marks you
@@ -13,7 +13,10 @@ WHAT IT DOES
   2. THE BEGINNING - everything from the start of the document up to some
      text you type is taken out, and replaced with new text (or nothing).
      For example: everything before "Dear colleagues," goes.
-  3. THE ENDING - everything from some text you type to the end of the
+  3. SECTIONS BETWEEN TWO PHRASES - what is between two phrases you type is
+     deleted, everywhere it appears. For example: everything between "Note:"
+     and "End of note" goes.
+  4. THE ENDING - everything from some text you type to the end of the
      document is taken out, and replaced with new text (or nothing).
      For example: everything after "Kind regards," goes.
 
@@ -33,7 +36,7 @@ START IT
    (the files themselves are not touched).
 
 2. CHOOSE WHAT TO REPLACE
-   Tick one or more of the three.
+   Tick one or more of the four.
 
    WORDS, PHRASES OR MARKS
      Find:          what to look for
@@ -52,6 +55,32 @@ START IT
                          the document starts with that text afterwards.)
      If the text is there more than once: use the first one (the usual
                          choice for a beginning) or the last one.
+
+   SECTIONS BETWEEN TWO PHRASES
+     First phrase, Last phrase:  what is between them is deleted, every time
+                         they appear in a document.
+     and the first phrase too, and the last phrase too:  tick them to delete
+                         that phrase as well. (Not ticked: the phrase stays.)
+     Match case:         "Note:" does not find "NOTE:". Without it, capitals
+                         don't count, so "to" is also found inside "into".
+                         Choose phrases that can't turn up in other words, and
+                         check what the preview shows in red.
+
+     How sections are paired: each first phrase goes with the next last phrase
+     after it, and the search carries on after that one. A first phrase with no
+     last phrase after it stays, and the preview says so.
+
+     The text on each side joins up as you would leave it: no doubled spaces,
+     and no empty line where a whole paragraph went. A section that starts in
+     one paragraph and ends partway through a later one joins them into one
+     paragraph, which takes the look of the later one.
+
+     Good to know about sections:
+       - Only the main text is looked at, not headers, footers or footnotes.
+       - A whole table inside a section goes with it. A section that starts or
+         ends across the edge of a table, or runs from one cell to another,
+         stays as it is, and the preview says so.
+       - The special codes below work here too, such as ^m for a page break.
 
    THE ENDING OF EACH DOCUMENT
      Everything after:   the text where the ending starts, for example
@@ -184,8 +213,8 @@ GOOD TO KNOW
   - In a .txt file every line ending counts as ^p. A .txt file has no separate
     line breaks, so ^l finds nothing there, and ^l in "Replace with" makes an
     ordinary new line.
-  - The beginning and ending are cut first, then words and phrases are
-    replaced in what is left. A new beginning or ending you put in is not
+  - The beginning, the ending and the sections are cut first, then words and
+    phrases are replaced in what is left. A new beginning or ending you put in is not
     changed by the word replacements.
 
 IF THE DESKTOP SHORTCUT GOES MISSING (or you move this folder)
@@ -212,7 +241,13 @@ TRY IT SAFELY
   both boxes empty, choosing Bold with the "Format..." button next to "Find",
   and choosing Not bold and Blue with the one next to "Replace with".
 
+  In the newsletters, try first phrase "New starters" and last phrase "Spring
+  picnic", with "and the first phrase too" ticked. In the preview, see how it
+  also finds "new starters" in the line near the top. Ticking "Match case"
+  stops that.
+
 FILES IN THIS FOLDER
   Find and Replace.ps1  - the window
   ReplaceEngine.ps1     - the part that finds and replaces the text
   Create shortcuts.ps1  - makes the shortcuts and the icon
+  Test sections.ps1     - checks that deleting sections works
