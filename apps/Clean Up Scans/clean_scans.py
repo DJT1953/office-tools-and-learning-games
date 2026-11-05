@@ -17,8 +17,10 @@ earlier run is left alone (the next run uses "cleaned (2)"):
     window), keeping its shape with white filling what is left, and marked
     600 DPI.
 
-Only the top level of the folder is read, and "what was done.txt" in the new
-folder lists what happened to each picture.
+Only the top level of the folder is read unless the subfolders box is ticked.
+The copies then keep the same folder layout, and "cleaned" folders from earlier
+runs are skipped. "what was done.txt" in the new folder lists what happened to
+each picture.
 
 Requirements (one-time): numpy, opencv-python-headless and pillow, plus
 pillow-heif for iPhone .heic photos. If the Python running this lacks them, it
@@ -103,6 +105,7 @@ WIDTH, HEIGHT, DPI = 1200, 900, 600
 PICTURE_TYPES = (".jpg", ".jpeg", ".jpe", ".jfif", ".png", ".tif", ".tiff", ".bmp",
                  ".gif", ".webp", ".heic", ".heif")
 KEEPS_DPI = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp")   # others are saved as .jpg
+FULL_SIZE = "full size"    # subfolder of the results that holds the full-size copies
 WORK_SIDE = 1000           # long side of the small copy the analysis runs on
 FOCAL = 0.9                # typical phone lens, as a share of the picture's long side
 MIN_PAGE = 0.10            # a page must cover at least this share of the picture
@@ -697,6 +700,7 @@ def save_picture(rgb, path, dpi, icc):
         options.update(quality=95, subsampling=0)
     elif ext in (".tif", ".tiff"):
         options["compression"] = "tiff_lzw"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     Image.fromarray(rgb).save(path, **options)
 
 
@@ -720,10 +724,20 @@ def natural_key(name):
     return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", name)]
 
 
-def list_pictures(folder):
-    return sorted((f for f in os.listdir(folder)
-                   if f.lower().endswith(PICTURE_TYPES) and os.path.isfile(os.path.join(folder, f))),
-                  key=natural_key)
+def skip_folder(name):
+    """Results of an earlier run would be cleaned a second time, and hidden or
+    system folders (.git, $RECYCLE.BIN) don't hold the user's pictures."""
+    return name.startswith((".", "$")) or bool(re.fullmatch(r"cleaned( \(\d+\))?", name, re.I))
+
+
+def list_pictures(folder, subfolders=False):
+    """Picture paths relative to the folder, in natural order."""
+    found = []
+    for here, folders, files in os.walk(folder):
+        folders[:] = [d for d in folders if subfolders and not skip_folder(d)]
+        found += [os.path.relpath(os.path.join(here, f), folder)
+                  for f in files if f.lower().endswith(PICTURE_TYPES)]
+    return sorted(found, key=natural_key)
 
 
 def new_folder(folder):
@@ -735,25 +749,26 @@ def new_folder(folder):
     return target
 
 
-def output_name(name, taken):
-    """Keep the name and type where the type can hold a DPI. Two originals can
-    land on one name (a.heic and a.jpg), so the later one gets a number."""
-    stem, ext = os.path.splitext(name)
+def output_name(relative, taken):
+    """Keep the path, name and type where the type can hold a DPI. Two originals
+    can land on one name (a.heic and a.jpg), so the later one gets a number. Its
+    full-size name is reserved too, in case the folder has a "full size" subfolder."""
+    stem, ext = os.path.splitext(relative)
     ext = ext if ext.lower() in KEEPS_DPI else ".jpg"
     result, n = stem + ext, 1
-    while result.lower() in taken:
+    while {result.lower(), os.path.join(FULL_SIZE, result).lower()} & taken:
         n += 1
         result = f"{stem} ({n}){ext}"
-    taken.add(result.lower())
+    taken.update((result.lower(), os.path.join(FULL_SIZE, result).lower()))
     return result
 
 
 def run_batch(folder, target, settings, report, stop):
     """Clean every picture, calling report(kind, ...) as it goes."""
-    width, height, dpi, turn_frame, keep_full = settings
-    pictures = list_pictures(folder)
-    full_folder = os.path.join(target, "full size")
-    os.makedirs(full_folder if keep_full else target, exist_ok=True)
+    width, height, dpi, turn_frame, keep_full, subfolders = settings
+    pictures = list_pictures(folder, subfolders)
+    full_folder = os.path.join(target, FULL_SIZE)
+    os.makedirs(target, exist_ok=True)
     taken = set()
     log, whitened, squared, leveled, failed = [], 0, 0, 0, 0
     finished = 0
@@ -801,6 +816,7 @@ class App:
         self.dpi = tk.StringVar(value=str(DPI))
         self.turn_frame = tk.BooleanVar(value=False)
         self.keep_full = tk.BooleanVar(value=False)
+        self.subfolders = tk.BooleanVar(value=False)
         self.status = tk.StringVar(value="Choose a folder of pictures to begin.")
         self.build()
 
@@ -810,15 +826,20 @@ class App:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         frame.columnconfigure(1, weight=1)
-        frame.rowconfigure(6, weight=1)
+        frame.rowconfigure(7, weight=1)
 
         ttk.Label(frame, text="Folder:").grid(row=0, column=0, sticky="w")
         ttk.Entry(frame, textvariable=self.folder, width=60).grid(row=0, column=1, sticky="ew", padx=6)
         self.browse_button = ttk.Button(frame, text="Choose folder...", command=self.browse)
         self.browse_button.grid(row=0, column=2)
+        self.subfolders_box = ttk.Checkbutton(frame, variable=self.subfolders,
+                                              command=self.count_pictures,
+                                              text="Include subfolders (the copies keep the same "
+                                                   "folder layout)")
+        self.subfolders_box.grid(row=1, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
         size = ttk.Frame(frame)
-        size.grid(row=1, column=0, columnspan=3, sticky="w", pady=(10, 2))
+        size.grid(row=2, column=0, columnspan=3, sticky="w", pady=(10, 2))
         ttk.Label(size, text="Size:").pack(side="left")
         ttk.Entry(size, textvariable=self.width, width=6).pack(side="left", padx=(6, 2))
         ttk.Label(size, text="x").pack(side="left")
@@ -830,14 +851,14 @@ class App:
         ttk.Checkbutton(frame, variable=self.turn_frame,
                         text="Turn the frame for upright pictures, so they come out larger "
                              "(900 x 1200 instead of 1200 x 900)"
-                        ).grid(row=2, column=0, columnspan=3, sticky="w")
+                        ).grid(row=3, column=0, columnspan=3, sticky="w")
         ttk.Checkbutton(frame, variable=self.keep_full,
                         text='Also keep a full-size copy of each, in "full size" '
                              "(sharper for printing or reading the text)"
-                        ).grid(row=3, column=0, columnspan=3, sticky="w")
+                        ).grid(row=4, column=0, columnspan=3, sticky="w")
 
         buttons = ttk.Frame(frame)
-        buttons.grid(row=4, column=0, columnspan=3, sticky="w", pady=8)
+        buttons.grid(row=5, column=0, columnspan=3, sticky="w", pady=8)
         self.start_button = ttk.Button(buttons, text="Start", command=self.start)
         self.start_button.pack(side="left")
         self.stop_button = ttk.Button(buttons, text="Stop", command=self.stop.set, state="disabled")
@@ -847,10 +868,10 @@ class App:
         self.open_button.pack(side="left")
 
         self.bar = ttk.Progressbar(frame, mode="determinate")
-        self.bar.grid(row=5, column=0, columnspan=3, sticky="ew")
+        self.bar.grid(row=6, column=0, columnspan=3, sticky="ew")
 
         lines = ttk.Frame(frame)
-        lines.grid(row=6, column=0, columnspan=3, sticky="nsew", pady=6)
+        lines.grid(row=7, column=0, columnspan=3, sticky="nsew", pady=6)
         lines.columnconfigure(0, weight=1)
         lines.rowconfigure(0, weight=1)
         self.list = tk.Text(lines, height=14, width=90, wrap="none", state="disabled")
@@ -860,13 +881,18 @@ class App:
         self.list.configure(yscrollcommand=scroll.set)
 
         ttk.Label(frame, textvariable=self.status, wraplength=700, justify="left"
-                  ).grid(row=7, column=0, columnspan=3, sticky="w")
+                  ).grid(row=8, column=0, columnspan=3, sticky="w")
 
     def browse(self):
         chosen = filedialog.askdirectory(title="Pick the folder of pictures", parent=self.root)
         if chosen:
             self.folder.set(os.path.normpath(chosen))
-            count = len(list_pictures(chosen))
+            self.count_pictures()
+
+    def count_pictures(self):
+        folder = self.folder.get().strip().strip('"')
+        if os.path.isdir(folder):
+            count = len(list_pictures(folder, self.subfolders.get()))
             self.status.set(f"{count} picture(s) found. Copies will go in a new subfolder; "
                             "the originals are not changed.")
 
@@ -880,7 +906,8 @@ class App:
             messagebox.showerror(TITLE, "Size and DPI must be whole numbers above zero.",
                                  parent=self.root)
             return None
-        return width, height, dpi, self.turn_frame.get(), self.keep_full.get()
+        return (width, height, dpi, self.turn_frame.get(), self.keep_full.get(),
+                self.subfolders.get())
 
     def start(self):
         folder = self.folder.get().strip().strip('"')
@@ -890,9 +917,9 @@ class App:
         settings = self.settings()
         if settings is None:
             return
-        if not list_pictures(folder):
-            messagebox.showinfo(TITLE, "There are no pictures directly in that folder.",
-                                parent=self.root)
+        if not list_pictures(folder, self.subfolders.get()):
+            where = "in that folder or its subfolders" if self.subfolders.get() else "directly in that folder"
+            messagebox.showinfo(TITLE, f"There are no pictures {where}.", parent=self.root)
             return
         self.target = new_folder(folder)
         self.stop.clear()
@@ -901,6 +928,7 @@ class App:
         self.list.configure(state="disabled")
         self.start_button.configure(state="disabled")
         self.browse_button.configure(state="disabled")
+        self.subfolders_box.configure(state="disabled")
         self.stop_button.configure(state="normal")
         self.open_button.configure(state="disabled")
 
@@ -940,6 +968,7 @@ class App:
     def work_ended(self):
         self.start_button.configure(state="normal")
         self.browse_button.configure(state="normal")
+        self.subfolders_box.configure(state="normal")
         self.stop_button.configure(state="disabled")
         if self.target and os.path.isdir(self.target):
             self.open_button.configure(state="normal")
