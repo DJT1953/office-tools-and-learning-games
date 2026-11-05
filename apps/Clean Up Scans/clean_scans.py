@@ -11,8 +11,9 @@ earlier run is left alone (the next run uses "cleaned (2)"):
   - Screenshots are already square, so they are left uncropped and unturned,
     unless one shows a page in a viewer with dark controls around it.
   - An obvious document (marks on a plain light background) gets a pure white
-    background, with shadows evened out. Pictures and colored areas on the page
-    keep their look, and ordinary photos are not whitened at all.
+    background, with shadows evened out, unless the whitening box is unticked.
+    Pictures and colored areas on the page keep their look, and ordinary photos
+    are not whitened at all.
   - Every copy is resized to fit the frame (1200 x 900 unless changed in the
     window), keeping its shape with white filling what is left, and marked
     600 DPI.
@@ -645,7 +646,7 @@ def viewer_page(rgb):
     return rgb[int(top / scale):int(bottom / scale)]
 
 
-def clean_screen(rgb):
+def clean_screen(rgb, whiten=True):
     """A screenshot: only a page shown in a viewer is cropped, and only a clean
     background is whitened. Evening out lighting has no place on a screen."""
     done = []
@@ -656,14 +657,14 @@ def clean_screen(rgb):
         if inner_look.is_document and inner_look.flat:
             page, look = inner, inner_look
             done.append("page squared up")
-    if look.is_document and look.flat:
+    if whiten and look.is_document and look.flat:
         page = whiten_flat(page, look)
         done.append("background whitened")
     return page, done
 
 
-def clean_page(rgb):
-    """Square up, level and whiten. Returns the page and a list of what was done."""
+def clean_page(rgb, whiten=True):
+    """Square up, level and (if asked) whiten. Returns the page and a list of what was done."""
     done = []
     page, look, squared = square_up(rgb)
     if squared:
@@ -673,7 +674,7 @@ def clean_page(rgb):
         if angle:
             done.append(f"leveled {abs(angle):.1f} degrees")
             look = study_page(page)
-        if look.is_document:
+        if whiten and look.is_document:
             page = whiten_flat(page, look) if look.flat else whiten_photo(page, look)
             done.append("background whitened")
     return page, done
@@ -704,12 +705,12 @@ def save_picture(rgb, path, dpi, icc):
     Image.fromarray(rgb).save(path, **options)
 
 
-def clean_file(source, target, full_target, width, height, dpi, turn_frame):
+def clean_file(source, target, full_target, width, height, dpi, turn_frame, whiten):
     rgb, pages, icc = open_picture(source)
     if not full_target:      # a sharper working copy than this would never reach the file
         rgb, _ = shrink(rgb, 2 * max(width, height))
     screen = is_screen_capture(os.path.basename(source), rgb)
-    page, done = clean_screen(rgb) if screen else clean_page(rgb)
+    page, done = clean_screen(rgb, whiten) if screen else clean_page(rgb, whiten)
     if full_target:
         save_picture(page, full_target, dpi, icc)
     upright = turn_frame and page.shape[0] > page.shape[1]
@@ -765,7 +766,7 @@ def output_name(relative, taken):
 
 def run_batch(folder, target, settings, report, stop):
     """Clean every picture, calling report(kind, ...) as it goes."""
-    width, height, dpi, turn_frame, keep_full, subfolders = settings
+    width, height, dpi, turn_frame, keep_full, subfolders, whiten = settings
     pictures = list_pictures(folder, subfolders)
     full_folder = os.path.join(target, FULL_SIZE)
     os.makedirs(target, exist_ok=True)
@@ -780,7 +781,7 @@ def run_batch(folder, target, settings, report, stop):
         try:
             done = clean_file(os.path.join(folder, name), os.path.join(target, out_name),
                               os.path.join(full_folder, out_name) if keep_full else None,
-                              width, height, dpi, turn_frame)
+                              width, height, dpi, turn_frame, whiten)
             text = ", ".join(done)
             whitened += "background whitened" in done
             squared += "page squared up" in done
@@ -817,6 +818,7 @@ class App:
         self.turn_frame = tk.BooleanVar(value=False)
         self.keep_full = tk.BooleanVar(value=False)
         self.subfolders = tk.BooleanVar(value=False)
+        self.whiten = tk.BooleanVar(value=True)
         self.status = tk.StringVar(value="Choose a folder of pictures to begin.")
         self.build()
 
@@ -826,7 +828,7 @@ class App:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         frame.columnconfigure(1, weight=1)
-        frame.rowconfigure(7, weight=1)
+        frame.rowconfigure(8, weight=1)
 
         ttk.Label(frame, text="Folder:").grid(row=0, column=0, sticky="w")
         ttk.Entry(frame, textvariable=self.folder, width=60).grid(row=0, column=1, sticky="ew", padx=6)
@@ -848,17 +850,21 @@ class App:
         ttk.Entry(size, textvariable=self.dpi, width=6).pack(side="left")
         ttk.Label(size, text="DPI").pack(side="left", padx=4)
 
+        ttk.Checkbutton(frame, variable=self.whiten,
+                        text="Whiten document backgrounds (untick to keep every picture's "
+                             "own colors)"
+                        ).grid(row=3, column=0, columnspan=3, sticky="w")
         ttk.Checkbutton(frame, variable=self.turn_frame,
                         text="Turn the frame for upright pictures, so they come out larger "
                              "(900 x 1200 instead of 1200 x 900)"
-                        ).grid(row=3, column=0, columnspan=3, sticky="w")
+                        ).grid(row=4, column=0, columnspan=3, sticky="w")
         ttk.Checkbutton(frame, variable=self.keep_full,
                         text='Also keep a full-size copy of each, in "full size" '
                              "(sharper for printing or reading the text)"
-                        ).grid(row=4, column=0, columnspan=3, sticky="w")
+                        ).grid(row=5, column=0, columnspan=3, sticky="w")
 
         buttons = ttk.Frame(frame)
-        buttons.grid(row=5, column=0, columnspan=3, sticky="w", pady=8)
+        buttons.grid(row=6, column=0, columnspan=3, sticky="w", pady=8)
         self.start_button = ttk.Button(buttons, text="Start", command=self.start)
         self.start_button.pack(side="left")
         self.stop_button = ttk.Button(buttons, text="Stop", command=self.stop.set, state="disabled")
@@ -868,10 +874,10 @@ class App:
         self.open_button.pack(side="left")
 
         self.bar = ttk.Progressbar(frame, mode="determinate")
-        self.bar.grid(row=6, column=0, columnspan=3, sticky="ew")
+        self.bar.grid(row=7, column=0, columnspan=3, sticky="ew")
 
         lines = ttk.Frame(frame)
-        lines.grid(row=7, column=0, columnspan=3, sticky="nsew", pady=6)
+        lines.grid(row=8, column=0, columnspan=3, sticky="nsew", pady=6)
         lines.columnconfigure(0, weight=1)
         lines.rowconfigure(0, weight=1)
         self.list = tk.Text(lines, height=14, width=90, wrap="none", state="disabled")
@@ -881,7 +887,7 @@ class App:
         self.list.configure(yscrollcommand=scroll.set)
 
         ttk.Label(frame, textvariable=self.status, wraplength=700, justify="left"
-                  ).grid(row=8, column=0, columnspan=3, sticky="w")
+                  ).grid(row=9, column=0, columnspan=3, sticky="w")
 
     def browse(self):
         chosen = filedialog.askdirectory(title="Pick the folder of pictures", parent=self.root)
@@ -907,7 +913,7 @@ class App:
                                  parent=self.root)
             return None
         return (width, height, dpi, self.turn_frame.get(), self.keep_full.get(),
-                self.subfolders.get())
+                self.subfolders.get(), self.whiten.get())
 
     def start(self):
         folder = self.folder.get().strip().strip('"')
