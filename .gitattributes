@@ -1,0 +1,2 @@
+# Keep every file byte for byte, so Windows batch files and scripts stay as built
+* -text

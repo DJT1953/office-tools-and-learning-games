@@ -1,0 +1,218 @@
+FIND AND REPLACE - how to use it
+================================
+
+WHAT IT DOES
+  It changes the text in many .rtf, .doc, .docx and .txt documents at once.
+  It can do three things, on their own or together:
+
+  1. WORDS, PHRASES OR MARKS - like Find and Replace in Word. Every "Acme Ltd"
+     becomes "Bright Star Group", for example. It also works on marks you
+     can't normally see: every line break (^l) can become a paragraph mark (^p).
+     And it can find and change how text looks: font, size, bold, italic,
+     underline, color, highlight and style.
+  2. THE BEGINNING - everything from the start of the document up to some
+     text you type is taken out, and replaced with new text (or nothing).
+     For example: everything before "Dear colleagues," goes.
+  3. THE ENDING - everything from some text you type to the end of the
+     document is taken out, and replaced with new text (or nothing).
+     For example: everything after "Kind regards," goes.
+
+  You always see every change first, and nothing is changed until you say so.
+
+START IT
+  Double-click "Find and Replace" on your Desktop. (The same shortcut is
+  also in this folder.) You can also drop documents or a folder onto the
+  shortcut: they go straight into the list.
+
+1. ADD THE DOCUMENTS
+   - "Add documents..." picks one or more documents.
+   - "Add a folder..." adds every .rtf, .doc, .docx and .txt document in a
+     folder (not the ones in folders inside it).
+   - Or drag documents or folders into the list.
+   "Remove from the list" and "Clear the list" take them out of the list
+   (the files themselves are not touched).
+
+2. CHOOSE WHAT TO REPLACE
+   Tick one or more of the three.
+
+   WORDS, PHRASES OR MARKS
+     Find:          what to look for
+     Replace with:  what to put instead (leave it empty to delete it)
+     Match case:    "Cat" only finds "Cat", not "cat"
+     Whole words only:  "cat" does not find the "cat" in "concatenate"
+     It works like Word: it also looks in headers, footers, footnotes and
+     text boxes, and a replacement typed in small letters follows the
+     capitals of what it replaces ("cat" -> "dog" turns "Cat" into "Dog").
+
+   THE BEGINNING OF EACH DOCUMENT
+     Everything before:  the text where the beginning stops, for example
+                         "Dear colleagues,". Copy it from a document if you
+                         like. Everything before it is replaced.
+     and this text too:  tick it to replace that text as well. (Not ticked:
+                         the document starts with that text afterwards.)
+     If the text is there more than once: use the first one (the usual
+                         choice for a beginning) or the last one.
+
+   THE ENDING OF EACH DOCUMENT
+     Everything after:   the text where the ending starts, for example
+                         "Kind regards," or "Unsubscribe". Everything after
+                         it is replaced.
+     and this text too:  tick it to replace that text as well.
+     If the text is there more than once: use the last one (the usual
+                         choice for an ending) or the first one.
+
+   REPLACE IT WITH (for the beginning and the ending)
+     - this text: type or paste the new beginning or ending. It can be
+       several lines long. Leave it empty to just delete the beginning or
+       ending. Typed text gets the look of the ordinary text next to it
+       (not of a heading).
+     - the contents of a document: click "Choose..." and pick a Word
+       document. Everything in it is put in, with its own fonts, styles
+       and layout. Handy for a standard introduction or ending.
+
+   Straight and curly quotes count as the same ("it's" finds "it's").
+   The text to look for can be up to 255 characters long.
+   The app remembers everything you typed for next time.
+
+   SPECIAL MARKS AND CODES (the same codes as in Word)
+     All the boxes understand Word's special codes. Type them, or click the
+     "Special" button next to a box and pick one from the list. For example:
+       Turn line breaks into paragraph marks:   Find ^l     Replace with ^p
+       Take out empty lines:                    Find ^p^p   Replace with ^p
+       Turn tabs into spaces:                   Find ^t     Replace with a space
+     Like Word, ^p^p replaces each pair once. If there are several empty lines
+     in a row, preview and run it again on the changed documents.
+
+       ^p  paragraph mark (Enter)            ^s  non-breaking space
+       ^l  manual line break (Shift+Enter)   ^~  non-breaking hyphen
+       ^t  tab                               ^-  optional hyphen
+       ^m  manual page break                 ^+  em dash
+       ^n  column break                      ^=  en dash
+       ^^  the ^ character itself
+
+     Only in the boxes that look for something:
+       ^b  section break     ^w  white space (spaces and tabs together)
+       ^?  any character     ^#  any digit       ^$  any letter
+       ^g  picture           ^f  footnote mark   ^e  endnote mark
+     Only in "Replace with" for words, phrases or marks:
+       ^&  the text that was found ("cat" replaced with "^&s" makes "cats")
+     Numbers work as in Word too, such as ^13, ^0150 and ^u8212.
+
+     To use the ^ character itself, type ^^. A code that doesn't exist is
+     pointed out before anything happens. Word's clipboard code ^c is not
+     available: paste the text into the box instead.
+
+   FORMATTING (the "Format..." buttons, like in Word)
+     "Find" and "Replace with" each have a "Format..." button. You can choose
+     a font, size, bold, italic, underline, strikethrough, color, highlight
+     and style. Anything left at "(any)" or "(no change)" is ignored.
+
+     How the boxes and the formats work together:
+       Find "cat" + Format Bold       finds only the bold "cat"s
+       Find empty + Format Bold       finds all bold text
+       Replace with empty + a Format  keeps the words and only changes their look
+       Replace with "dog" + a Format  puts in "dog" with that look
+       Replace with empty, no Format  deletes what was found, as always
+
+     For example, to make all bold text red instead: leave both boxes empty,
+     choose Bold under "Find", and choose Not bold and Red under "Replace with".
+
+     The chosen format shows in blue under the box, and is remembered for next
+     time. To take it away, click "Format..." and then "No formatting".
+
+     Good to know about formats:
+       - "Automatic color" is the usual text color. To Word it is not the same
+         as "Black", so ordinary text is found with "Automatic color".
+       - Highlights are found as Highlighted or Not highlighted, not by color.
+       - "Underlined" finds a single underline, not double or dotted ones.
+       - Giving text a paragraph style, such as a heading, changes the whole
+         paragraph it is in, even if only one word was found.
+       - A style someone made themselves may only be in some documents. Those
+         without it are left alone, and the preview says so.
+       - The "Format..." buttons are for words, phrases and marks. To give a
+         new beginning or ending its own look, use "the contents of a document".
+       - A .txt file has no formatting. Nothing in it is found by a format, and
+         new text goes in without one.
+
+3. PREVIEW THE CHANGES
+   Click "Preview the changes...". Each document is read (nothing is changed
+   yet), and a list shows what will change in each one. Click a document to
+   see the details:
+     red and crossed out  = taken out
+     green                = put in
+     blue                 = gets the format shown in [ ]
+     grey                 = stays as it is
+   Marks show by name, such as [line break] and [paragraph].
+   A long beginning or ending shows its first and last lines, with the
+   number of characters in between. If the text was not found in a
+   document, it says so, and that part of the document stays as it is.
+
+4. CHOOSE WHERE TO SAVE, AND MAKE THE CHANGES
+   - Save changed copies in a folder called "replaced" (the choice that is
+     ticked when the window opens). Your documents stay exactly as they
+     are. The changed copies go into a "replaced" folder next to them, with
+     the same names. A copy left there by an earlier run is replaced.
+   - Change the documents themselves. You are asked to confirm first.
+     Before each document is changed, a copy of it as it is now is kept in
+     "before replace\<date and time>" next to it.
+   Then click "Save the changed copies" or "Change the documents".
+   Only documents that have something to change are saved.
+
+5. READ THE SUMMARY
+   It lists what was changed in each document, and anything that could
+   not be done, and why. "Open the folder" shows the changed documents.
+   After changing the documents themselves, "Put the documents back as
+   they were" undoes it. You can also do that yourself later: copy the
+   documents from the "before replace" folder back over the changed ones.
+
+GOOD TO KNOW
+  - Microsoft Word makes the changes to .rtf, .doc and .docx files in the
+    background (you won't see it). A document keeps its type: a .doc is
+    saved as a .doc, an .rtf as an .rtf. .txt files are changed directly,
+    and keep their special letters and line breaks.
+  - Close a document in Word before changing it with "Change the documents
+    themselves" (a document that is open can't be changed).
+  - Password-protected documents can't be opened, so they are skipped.
+  - A beginning or ending can't be cut in the middle of a table. If the
+    text is inside a table, that document is left as it is (the preview
+    says so).
+  - With tracked changes, the replacing is not tracked: it is simply done.
+  - Some marks always stay, because replacing them would damage the document:
+    the last paragraph mark of a document, header, footer or text box; the
+    paragraph mark right before a table; the mark that ends a footnote or
+    endnote before the next one; and the ends of table cells.
+  - In a .txt file every line ending counts as ^p. A .txt file has no separate
+    line breaks, so ^l finds nothing there, and ^l in "Replace with" makes an
+    ordinary new line.
+  - The beginning and ending are cut first, then words and phrases are
+    replaced in what is left. A new beginning or ending you put in is not
+    changed by the word replacements.
+
+IF THE DESKTOP SHORTCUT GOES MISSING (or you move this folder)
+  Double-click "Create desktop shortcut" in this folder.
+
+TRY IT SAFELY
+  The "Try it - sample documents" folder has three newsletters (.docx, .doc
+  and .rtf) and some meeting notes (.txt). Each newsletter starts with a
+  title and "Please do not forward..." before "Dear colleagues,", and ends
+  with "You are receiving this newsletter..." and an Unsubscribe line.
+  Try this:
+    - Words, phrases or marks: find "Acme Holdings", replace with "Bright Star Group"
+    - The beginning: everything before "Dear colleagues,", replaced with the
+      contents of the document "For the new beginning\Bright Star beginning.docx"
+    - The ending: everything after "You are receiving this", and this text
+      too, replaced with nothing
+  Then look at the copies in the "replaced" folder.
+
+  "Copied from the web.rtf" has line breaks instead of paragraph marks.
+  Try finding ^l and replacing it with ^p, with only "Words, phrases or
+  marks" ticked.
+
+  "Formatted text.rtf" has headings, bold words and a red warning. Try leaving
+  both boxes empty, choosing Bold with the "Format..." button next to "Find",
+  and choosing Not bold and Blue with the one next to "Replace with".
+
+FILES IN THIS FOLDER
+  Find and Replace.ps1  - the window
+  ReplaceEngine.ps1     - the part that finds and replaces the text
+  Create shortcuts.ps1  - makes the shortcuts and the icon

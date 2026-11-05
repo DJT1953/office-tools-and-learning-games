@@ -1,0 +1,84 @@
+﻿DOCUMENT REFORMATTER - how to use it
+====================================
+
+START IT
+  Double-click "Document Reformatter" on your Desktop.
+  (The same shortcut is also in this folder.)
+
+1. CHOOSE A FOLDER
+   A window opens. Pick the folder that holds your .rtf, .doc, .docx and
+   .txt files and click "Select Folder". Only files directly in that folder
+   are used, not files in folders inside it.
+
+2. CHOOSE THE SETTINGS (they apply to every file in the folder)
+   Left side:
+   - Font and Size: the new font and size for the text.
+   - Headings: keep headings bigger, or make them the same size as the text.
+   - Normal style: line spacing, space between paragraphs, first line
+     indent, alignment and text color. "Leave as it is in each file"
+     changes nothing.
+   Right side, "Clean up" (tick the ones you want):
+   - Remove highlighting and shading behind words. Shading in tables stays.
+     White words that sat on a dark background turn normal color, so they
+     don't disappear on the white page.
+   - Remove bold, italic and underline added by hand. Headings and tables
+     keep theirs, and so does text whose style is meant to be bold or
+     italic (such as a Quote).
+   - Even out letter spacing: undoes letters squeezed together, spread out
+     or stretched.
+   - Remove empty lines between paragraphs. Choose a "Space between
+     paragraphs" as well, or paragraphs will sit right on top of each other.
+   - Don't leave one line of a paragraph on its own at the top or bottom of
+     a page.
+   - Remove hyperlinks: keeps the words, takes away the link.
+   Right side, "Page":
+   - Paper size: Letter or A4. Pages turned sideways stay sideways.
+   - Margins: the same margin on all four sides of every page.
+   The app remembers your choices for next time.
+
+3. CLICK "Start reformatting"
+   A small window shows which file it is working on.
+   "Stop after this file" stops early.
+
+4. READ THE SUMMARY
+   It lists the files that were converted, skipped, or could not be
+   converted, and why. "Open the fixed folder" shows the new files.
+
+WHERE THE NEW FILES GO
+  Into a folder called "fixed" inside the folder you chose, always as .rtf.
+  Your original files are never changed. Running it again on the same
+  folder replaces the copies in "fixed".
+
+GOOD TO KNOW
+  - Microsoft Word does the work in the background (you won't see it).
+    If Word can't open a file, LibreOffice tries to read it instead.
+  - Headers, footers and footnotes get the new font but keep their size.
+  - Real headings (Word's Heading, Title and Subtitle styles) keep their
+    size if you choose "Keep headings bigger". Text that only LOOKS like a
+    heading (big bold text in an ordinary paragraph) is treated as normal
+    text: it gets the normal size, and loses its bold if you tick "Remove
+    bold, italic and underline added by hand".
+  - .txt files: special letters such as e-acute, the pound and euro signs
+    come through correctly, and so do files made on a Mac or Linux. Each
+    line of the .txt file becomes its own paragraph, so text that was split
+    into short lines stays that way.
+  - Removing empty lines leaves a blank line alone when it holds a picture,
+    or when it sits next to a table (so two tables never join together).
+  - Password-protected files are left alone and listed in the summary.
+  - Files whose names start with ~$ are Word's temporary files and are skipped.
+  - Report.doc and Report.docx in the same folder become
+    "Report (doc).rtf" and "Report (docx).rtf" (and Report.txt becomes
+    "Report (txt).rtf").
+
+IF THE DESKTOP SHORTCUT GOES MISSING (or you move this folder)
+  Double-click "Create desktop shortcut" in this folder.
+
+TRY IT SAFELY
+  The "Try it - sample documents" folder has a few test files with mixed
+  fonts, headings and links, a messy document (colored and highlighted
+  words, hand-made bold, squeezed letters, blank lines) and a .txt file.
+
+FILES IN THIS FOLDER
+  Document Reformatter.ps1  - the window
+  ReformatEngine.ps1        - the part that reformats the files
+  Create shortcuts.ps1      - makes the shortcuts and the icon

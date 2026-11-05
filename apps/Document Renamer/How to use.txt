@@ -1,0 +1,90 @@
+﻿DOCUMENT RENAMER - how to use it
+================================
+
+WHAT IT DOES
+  It gives the .rtf, .doc, .docx and .txt files in a folder new names,
+  made from the first 30 characters of the text inside each one.
+  For example, a letter called "Document1.docx" that starts
+  "Dear Mrs Patel, Thank you for your letter..." becomes
+  "Dear Mrs Patel, Thank you for.docx".
+
+START IT
+  Double-click "Document Renamer" on your Desktop.
+  (The same shortcut is also in this folder.)
+
+1. CHOOSE A FOLDER
+   Pick the folder that holds your documents and click "Select Folder".
+   Only files directly in that folder are used, not files in folders
+   inside it. A small window shows each file being read.
+
+2. CHECK THE NEW NAMES
+   A list shows each file's name now and its new name. Nothing has
+   changed yet. The Note column says when something is different, for
+   example when a file keeps its name because it has no words in it.
+   - "the first 30 characters": change the number for longer or shorter
+     names. The list changes as you type. The app remembers the number.
+
+3. CHOOSE WHAT TO DO
+   - Save renamed copies in a folder called "renamed" (the choice that
+     is ticked when the window opens). Your files stay exactly as they
+     are, and renamed copies go into a "renamed" folder inside your folder.
+   - Rename the files themselves. The files in your folder get their new
+     names. You are asked to confirm first, and you can put the old
+     names back afterwards (see below).
+   Then click "Save renamed copies" or "Rename the files".
+
+4. READ THE SUMMARY
+   It lists what was renamed, what kept its name, and anything that could
+   not be done, and why. "Open the folder" shows the files.
+
+PUTTING THE OLD NAMES BACK
+  After renaming the files themselves, click "Put the old names back" in
+  the summary. You can also do it later: open the same folder in Document
+  Renamer again and click "Put the old names back..." near the bottom of
+  the window. Each time undoes one renaming, starting with the latest.
+  (Renamed copies don't need this: your original files were never changed.)
+
+HOW THE NEW NAME IS MADE
+  - Empty lines and spaces at the start of the document are skipped.
+  - Line breaks, tabs and table cells become a single space.
+  - Windows does not allow some characters in file names, so:
+      / \ |      become  -
+      "          becomes  '
+      :          becomes  " - "  (or "-" between numbers, as in 10-30)
+      < > * ?    are left out
+  - A name never ends with a space, a period or a dash.
+  - The file type stays the same: .docx stays .docx, .txt stays .txt.
+  - If two documents start the same way, the second one gets " (2)" at
+    the end, the third " (3)", and so on.
+  - Only the main text counts: not headers, footers, page numbers or
+    text boxes. Hidden text is skipped. With tracked changes, the text
+    is read as if the changes were accepted.
+
+GOOD TO KNOW
+  - Microsoft Word reads the .rtf, .doc and .docx files in the background
+    (you won't see it). If Word can't open a file, LibreOffice tries
+    instead. Word never changes or saves your files.
+    .txt files are read directly, and special letters such as e-acute and
+    the pound sign come through correctly.
+  - A file that is open in Word can't be renamed. Close it and try again.
+  - Password-protected files can't be read, so they keep their name.
+  - Files whose names start with ~$ are Word's temporary files and are skipped.
+  - Running it again with "Save renamed copies" replaces copies in
+    "renamed" that have the same name. Other copies there stay.
+  - When renaming the files themselves, a new name never takes the name of
+    another file in the folder; " (2)" is added instead.
+
+IF THE DESKTOP SHORTCUT GOES MISSING (or you move this folder)
+  Double-click "Create desktop shortcut" in this folder.
+
+TRY IT SAFELY
+  The "Try it - sample documents" folder has a few files with dull names:
+  a letter, an invoice, meeting notes, a table of phone numbers, a
+  shopping list, two copies of a recipe that start the same way, and a
+  blank document. Try both "Save renamed copies" and "Rename the files
+  themselves", then "Put the old names back".
+
+FILES IN THIS FOLDER
+  Document Renamer.ps1  - the window
+  RenameEngine.ps1      - the part that reads and renames the files
+  Create shortcuts.ps1  - makes the shortcuts and the icon
