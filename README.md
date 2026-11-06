@@ -34,6 +34,7 @@ Unzip a tool, then start it as shown. Your originals are left alone unless a too
 | Clean Up Scans | Straightens, crops and whitens photographed pages | Python 3 | `Run_CleanScans.bat` | [Zip](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/clean-up-scans.zip) |
 | Combine Word Files | Joins a folder of .docx files into one, each keeping its look | Python 3 | `Run_CombineDocx.bat` | [Zip](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/combine-word-files.zip) |
 | Photos to Word | Turns photos of text into Word files, keeping the layout | Python 3, Tesseract OCR | `Run_PhotoText.bat` | [Zip](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/photos-to-word.zip) |
+| Video Player | Plays MP4, MKV, AVI, MOV, WMV and other common videos with sound, and saves any frame as a PNG picture | Python 3; downloads a 150 MB add-on the first time | `Run_VideoPlayer.bat` | [Zip](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/video-player.zip) |
 
 Get Python 3 from [python.org](https://www.python.org/downloads/). The tools install the free add-ons they need the first time they run, which takes an internet connection.
 
