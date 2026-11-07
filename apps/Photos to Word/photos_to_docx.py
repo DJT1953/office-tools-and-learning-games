@@ -1,12 +1,14 @@
 """
 photos_to_docx.py
 
-Pick a folder in a Windows Explorer dialog. Every picture in it (any
-extension Pillow can open: jpg, jpeg, png, tif, bmp, gif, webp, heic*...)
-is read in natural filename order, its text is recognized (OCR), and the
-text is written to a like-named .docx in the same folder:
+Choose with a button whether each photo gets its own Word file or all of them
+go into one, then pick a folder in a Windows Explorer dialog. Every picture in
+it (any extension Pillow can open: jpg, jpeg, png, tif, bmp, gif, webp,
+heic*...) is read in natural filename order and its text is recognized (OCR).
 
-    IMG_0001.jpg  ->  IMG_0001.docx
+    One Word file per photo:      IMG_0001.jpg  ->  IMG_0001.docx
+    All photos in one Word file:  "<folder name> - all photos.docx" in the
+                                  folder, a page per photo, each named at the top
 
 Text is placed in a similar position to where it appears in the photo:
 left indent, vertical spacing, font size and gaps between columns are all
@@ -15,8 +17,9 @@ Columns are held in place by tab stops, so they line up in any font and stay
 lined up when the text is corrected. Shadows, table borders and a slightly
 tilted photo are dealt with along the way.
 
-If a photo already has a Word file you are asked before it is replaced, so
-corrections typed into earlier files aren't lost by accident.
+Corrections typed into earlier files aren't lost by accident: a photo's own
+Word file is only replaced if you say so, and the all-photos file is never
+replaced (a new one is numbered instead).
 
 Requirements (one-time):
     1. Tesseract OCR for Windows:
@@ -39,7 +42,7 @@ from math import floor, inf
 from statistics import median, median_low
 
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 
 REQUIRED = {"PIL": "pillow", "pytesseract": "pytesseract", "docx": "python-docx"}
 
@@ -93,10 +96,10 @@ from PIL import (Image, ImageDraw, ImageFilter, ImageFont, ImageMath, ImageOps,
                  UnidentifiedImageError)
 import pytesseract
 from docx import Document
-from docx.enum.section import WD_ORIENT
+from docx.enum.section import WD_ORIENT, WD_SECTION
 from docx.enum.text import WD_LINE_SPACING
 from docx.oxml.ns import qn
-from docx.shared import Inches, Pt
+from docx.shared import Inches, Pt, RGBColor
 
 try:  # optional HEIC/HEIF support
     from pillow_heif import register_heif_opener
@@ -433,10 +436,30 @@ def set_font(run, size_pt):
         rfonts.set(qn(attr), FONT_NAME)
 
 
-def build_docx(img_size, rows, out_path):
-    img_w, img_h = img_size
+def new_document():
+    """A document with its default empty paragraph removed, ready for photo pages."""
     doc = Document()
-    sec = doc.sections[0]
+    body = doc.element.body
+    for p in list(body.iterchildren(qn("w:p"))):
+        body.remove(p)
+    return doc
+
+
+def add_photo_page(doc, img_size, rows, label=None):
+    """Lay one photo's text out on a page of its own. Each page is its own
+    section, so a wide photo gets a landscape page even among portrait ones.
+    A label goes in the page's header, out of the way of the text."""
+    img_w, img_h = img_size
+    if doc.paragraphs:
+        sec = doc.add_section(WD_SECTION.NEW_PAGE)
+        # the break is an empty paragraph ending the last page; on a full page it
+        # could spill over and leave a blank page, so make it 1 point high
+        end = doc.paragraphs[-1].paragraph_format
+        end.space_before = end.space_after = Pt(0)
+        end.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+        end.line_spacing = Pt(1)
+    else:
+        sec = doc.sections[0]
     landscape = img_w > img_h
     pw, ph = (PAGE_H_IN, PAGE_W_IN) if landscape else (PAGE_W_IN, PAGE_H_IN)
     sec.orientation = WD_ORIENT.LANDSCAPE if landscape else WD_ORIENT.PORTRAIT
@@ -444,19 +467,20 @@ def build_docx(img_size, rows, out_path):
     for side in ("left_margin", "right_margin", "top_margin", "bottom_margin"):
         setattr(sec, side, Inches(MARGIN_IN))
 
+    if label:
+        sec.header.is_linked_to_previous = False
+        sec.header_distance = Inches(0.2)     # above the text, which starts at the margin
+        run = sec.header.paragraphs[0].add_run(label)
+        set_font(run, 8)
+        run.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+
     area_w, area_h = pw - 2 * MARGIN_IN, ph - 2 * MARGIN_IN
     in_per_px = min(area_w / img_w, area_h / img_h)    # keep photo proportions
     pt_per_px = in_per_px * 72
 
-    # remove the default empty paragraph
-    body = doc.element.body
-    for p in list(body.iterchildren(qn("w:p"))):
-        body.remove(p)
-
     if not rows:
         p = doc.add_paragraph()
         set_font(p.add_run("(no text found)"), 10)
-        doc.save(out_path)
         return
 
     width_pt = area_w * 72 - 1      # a point of slack so Word's rounding can't wrap a row
@@ -492,6 +516,10 @@ def build_docx(img_size, rows, out_path):
 
         prev_bottom_pt = max(prev_bottom_pt, top_pt) + line_pt
 
+
+def build_docx(img_size, rows, out_path):
+    doc = new_document()
+    add_photo_page(doc, img_size, rows)
     doc.save(out_path)
 
 
@@ -505,7 +533,53 @@ def output_name(folder, fname, taken):
     return out
 
 
+def combined_name(folder):
+    """Folder\\Folder - all photos.docx, numbered rather than replacing an earlier one."""
+    base = os.path.basename(os.path.normpath(folder)).rstrip(":") or "Photos"
+    out = os.path.join(folder, f"{base} - all photos.docx")
+    n = 2
+    while os.path.exists(out):
+        out = os.path.join(folder, f"{base} - all photos ({n}).docx")
+        n += 1
+    return out
+
+
 # ---------------------------------------------------------------- main
+def ask_mode():
+    """Ask with two buttons how the text should be saved. Returns "each",
+    "one", or None if the window is closed or cancelled."""
+    choice = []
+    win = tk.Toplevel()
+    win.title("Photos to Word")
+    win.resizable(False, False)
+    win.attributes("-topmost", True)
+
+    def pick(mode):
+        choice.append(mode)
+        win.destroy()
+
+    frame = ttk.Frame(win, padding=18)
+    frame.pack()
+    ttk.Label(frame, text="How should the text from the photos be saved?").pack(anchor="w", pady=(0, 12))
+    first = ttk.Button(frame, text="One Word file for each photo", command=lambda: pick("each"))
+    first.pack(fill="x", ipady=6, pady=3)
+    second = ttk.Button(frame, text="All photos in one Word file", command=lambda: pick("one"))
+    second.pack(fill="x", ipady=6, pady=3)
+    cancel = ttk.Button(frame, text="Cancel", command=win.destroy)
+    cancel.pack(pady=(12, 0))
+
+    for button in (first, second, cancel):              # Enter presses the highlighted button
+        button.bind("<Return>", lambda e: e.widget.invoke())
+    win.bind("<Escape>", lambda e: win.destroy())
+    win.update_idletasks()
+    win.geometry(f"+{(win.winfo_screenwidth() - win.winfo_width()) // 2}"
+                 f"+{(win.winfo_screenheight() - win.winfo_height()) // 3}")
+    first.focus_set()
+    win.focus_force()
+    win.wait_window()
+    return choice[0] if choice else None
+
+
 def main():
     dialog_root()
     try:
@@ -514,6 +588,9 @@ def main():
         messagebox.showerror("Photos to Word", str(e))
         return
 
+    mode = ask_mode()
+    if not mode:
+        return
     folder = filedialog.askdirectory(title="Pick the folder of photographs")
     if not folder:
         return
@@ -527,9 +604,9 @@ def main():
     skipped = len(files) - len(pictures)
 
     taken = set()
-    jobs = [(f, output_name(folder, f, taken)) for f in pictures]
+    jobs = [(f, output_name(folder, f, taken) if mode == "each" else None) for f in pictures]
     kept = 0
-    existing = sum(os.path.exists(out) for _, out in jobs)
+    existing = sum(1 for _, out in jobs if out and os.path.exists(out))
     if existing:
         answer = messagebox.askyesnocancel(
             "Photos to Word",
@@ -546,14 +623,18 @@ def main():
             jobs = [j for j in jobs if not os.path.exists(j[1])]
             kept = existing
 
+    combined = new_document() if mode == "one" else None
     done, failed, notes = [], [], []
     for n, (fname, out) in enumerate(jobs, 1):
         print(f"[{n}/{len(jobs)}] {fname} ...", flush=True)
         try:
             img, pages = open_image(os.path.join(folder, fname))
             rows = group_rows(ocr_lines(img))
-            build_docx(img.size, rows, out)
-            done.append(os.path.basename(out))
+            if combined is not None:
+                add_photo_page(combined, img.size, rows, label=fname)
+            else:
+                build_docx(img.size, rows, out)
+            done.append(fname)
             if pages > 1:
                 notes.append(f"{fname} has {pages} pages; only page 1 was read.")
         except PermissionError:
@@ -563,7 +644,19 @@ def main():
             traceback.print_exc()
             failed.append(f"{fname} ({e})")
 
-    msg = f"Created {len(done)} Word file(s) in:\n{folder}"
+    if combined is None:
+        msg = f"Created {len(done)} Word file(s) in:\n{folder}"
+    elif not done:
+        msg = "No Word file was made, because no photo could be read."
+    else:
+        out = combined_name(folder)
+        print("Saving", out, flush=True)
+        try:
+            combined.save(out)
+            msg = f"Put {len(done)} photo(s) into one Word file, a page each:\n{out}"
+        except Exception as e:
+            traceback.print_exc()
+            msg = f"The Word file could not be saved:\n{out}\n\n{e}"
     if kept:
         msg += f"\n\nKept {kept} existing Word file(s)."
     if failed:
