@@ -35,6 +35,9 @@ Unzip a tool, then start it as shown. Your originals are left alone unless a too
 | Combine Word Files | Joins a folder of .docx files into one, each keeping its look | Python 3 | `Run_CombineDocx.bat` | [Zip](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/combine-word-files.zip) |
 | Photos to Word | Turns photos of text into Word files, keeping the layout | Python 3, Tesseract OCR | `Run_PhotoText.bat` | [Zip](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/photos-to-word.zip) |
 | Video Player | Plays MP4, MKV, AVI, MOV, WMV and other common videos with sound, and saves any frame as a PNG picture | Python 3; downloads a 150 MB add-on the first time | `Run_VideoPlayer.bat` | [Zip](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/video-player.zip) |
+| Video Editor | Trims, splits, inserts and splices videos and sound files, with volume, fades and added music or narration, then saves in the format and folder you choose | Python 3; downloads about 190 MB the first time (40 MB with the Video Player); see the memory warning below | `Run_VideoEditor.bat` | [Zip](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/video-editor.zip) |
+
+**Video Editor memory warning:** saving long 4K edits needs a lot of memory, about 5 GB for 20 pieces of 4K video (HD needs far less). On a PC with 8 GB or less, keep 4K edits short or save them in parts.
 
 Get Python 3 from [python.org](https://www.python.org/downloads/). The tools install the free add-ons they need the first time they run, which takes an internet connection.
 

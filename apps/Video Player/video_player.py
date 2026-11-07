@@ -199,28 +199,35 @@ def show_crash(kind, value, tb):
         tk_message("showerror", message)
 
 
-def has_pyside():
+# module to look for: (what pip installs, what it is for, download size in MB)
+NEEDS = {"PySide6.QtMultimedia": (PYSIDE, "PySide6, which plays the videos", 150)}
+
+
+def has_module(name):
     try:
-        return importlib.util.find_spec("PySide6.QtMultimedia") is not None
+        return importlib.util.find_spec(name) is not None
     except ModuleNotFoundError:
         return False
 
 
-def install_missing():
+def install_missing(needs=NEEDS):
     """Double-clicking can start a different Python from the one pip installed
-    into, so offer to add PySide6 if this one lacks it."""
-    if has_pyside():
+    into, so offer to add whatever this one lacks. video_editor.py calls this
+    too, for its own add-on."""
+    missing = [need for module, need in needs.items() if not has_module(module)]
+    if not missing:
         return
+    names = " and ".join(what for _, what, _ in missing)
+    size = sum(mb for *_, mb in missing)
     if not tk_message("askyesno",
-                      f"This copy of Python ({sys.version.split()[0]}) still needs PySide6, "
-                      "which plays the videos.\n\nDownload and install it now? This only "
-                      "happens once. It is about 150 MB, so it can take a few minutes; "
-                      "a window shows the progress."):
+                      f"This copy of Python ({sys.version.split()[0]}) still needs {names}."
+                      f"\n\nDownload and install now? This only happens once. It is about "
+                      f"{size} MB, so it can take a few minutes; a window shows the progress."):
         sys.exit()
-    command = [sys.executable, "-m", "pip", "install", PYSIDE]
+    command = [sys.executable, "-m", "pip", "install", *(pip for pip, _, _ in missing)]
     flags = subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0   # show pip's progress
     if subprocess.run(command, creationflags=flags).returncode:
-        raise RuntimeError("Could not install PySide6. Check the internet connection "
+        raise RuntimeError(f"Could not install {names}. Check the internet connection "
                            "and try again.")
     site.addsitedir(site.getusersitepackages())   # a first install may have just created it
     importlib.invalidate_caches()
