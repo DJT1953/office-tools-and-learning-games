@@ -1,6 +1,6 @@
 # Office Tools and Learning Games
 
-Free fresh Windows tools for working through batches of documents, photos, and files, five remedial learning spoken games for practicing reading and counting/money, and a Force Account/Change Order cost Excel workbook for South Dakota DOT.
+Free fresh Windows tools for working through batches of documents, photos, and files, six remedial learning spoken games for practicing reading and counting/money, and a Force Account/Change Order cost Excel workbook for South Dakota DOT.
 
 **[Open the page with all games and downloads](https://djt1953.github.io/office-tools-and-learning-games/)**
 
@@ -17,8 +17,11 @@ The games speak out loud and run in a web browser, with nothing to install. Turn
 | Haunted House Payday | Count out dollar bills and get change back | [Play](https://djt1953.github.io/office-tools-and-learning-games/games/haunted-house-payday.html) |
 | Christmas Gift Run | Pay with bills and coins and watch your change | [Play](https://djt1953.github.io/office-tools-and-learning-games/games/christmas-gift-run.html) |
 | Menu Run | Read menu words and learn where food comes from | [Play](https://djt1953.github.io/office-tools-and-learning-games/games/menu-run.html) |
+| Carol Match | Match real photos to words; each match spells the word aloud and plays a note of a Christmas carol | [Play](https://djt1953.github.io/office-tools-and-learning-games/games/carol-match.html) |
 
-[Download all five games](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/learning-games.zip) to play without an internet connection. The fonts need internet, and plain fonts are used without it.
+[Download all six games](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/learning-games.zip) to play without an internet connection. The fonts need internet, and plain fonts are used without it.
+
+Carol Match's photos come from Wikimedia Commons and keep their own licences (public domain, CC0, CC BY and CC BY-SA), listed in the game's Photo credits and in [the photo credits](docs/games/carol-match-photos/CREDITS.md).
 
 ## Windows tools
 

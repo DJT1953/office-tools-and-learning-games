@@ -1312,9 +1312,9 @@ $('#cReset').addEventListener('click',()=>{const b=$('#cReset');
   if(!resetArm){resetArm=true;b.textContent='Click again to erase all progress';resetT=setTimeout(()=>{resetArm=false;b.textContent='Reset progress'},4000);return}
   clearTimeout(resetT);resetArm=false;b.textContent='Reset progress';const keepSet=P.set;P=load();P=JSON.parse(JSON.stringify(DEF));P.set=keepSet;save();renderCoach();$('#wins').textContent=0;renderRides();$('#cMsg').textContent='Progress erased.'});
 /* backup: the whole progress record as one code to keep somewhere safe; restore puts it back on any computer. Codes only restore into the game that made them. */
-function toCode(o){const b=new TextEncoder().encode(JSON.stringify(o));let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));return `ROBSGARAGE|${KEY}|${btoa(s)}`}
-function fromCode(code){const m=String(code).replace(/\s+/g,'').match(/^ROBSGARAGE\|([\w-]+)\|([A-Za-z0-9+/=]+)$/);
-  if(!m)return{err:'That is not a backup code. Copy the whole code, starting with ROBSGARAGE.'};if(m[1]!==KEY)return{err:'That code is from a different game.'};
+function toCode(o){const b=new TextEncoder().encode(JSON.stringify(o));let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));return `ACESGARAGE|${KEY}|${btoa(s)}`}
+function fromCode(code){const m=String(code).replace(/\s+/g,'').match(/^[A-Z]+GARAGE\|([\w-]+)\|([A-Za-z0-9+/=]+)$/);
+  if(!m)return{err:'That is not a backup code. Copy the whole code, starting with ACESGARAGE.'};if(m[1]!==KEY)return{err:'That code is from a different game.'};
   try{const o=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(m[2]),c=>c.charCodeAt(0))));if(o&&typeof o==='object'&&!Array.isArray(o))return{data:o}}catch(e){}
   return{err:'That code is damaged. Copy it again, all of it.'}}
 let restoring=false;

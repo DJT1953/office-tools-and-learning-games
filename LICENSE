@@ -18,6 +18,11 @@ Some programs download or use separate software, such as Python packages,
 ffmpeg, Tesseract, Microsoft Word, LibreOffice and Google Fonts. That software
 stays under its own license and is not covered by this one.
 
+The photographs in the Carol Match game come from Wikimedia Commons and stay
+under their own licenses (public domain, CC0, CC BY or CC BY-SA), listed in
+docs/games/carol-match-photos/CREDITS.md and in the game's Photo credits.
+This license does not cover them or limit what their licenses allow.
+
 NO WARRANTY. This work is provided "as is", without warranty of any kind. You
 use it at your own risk. Keep backups of your files. Check any figures against
 your contract and the agency's current requirements before relying on them. The

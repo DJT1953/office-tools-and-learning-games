@@ -2096,11 +2096,11 @@ $('#lenSeg').addEventListener('click', e => { const b = e.target.closest('button
 function toCode(o){
   const b = new TextEncoder().encode(JSON.stringify(o)); let s = '';
   for(let i = 0; i < b.length; i += 8192) s += String.fromCharCode.apply(null, b.subarray(i, i + 8192));
-  return `ROBSGARAGE|${KEY}|${btoa(s)}`;
+  return `ACESGARAGE|${KEY}|${btoa(s)}`;
 }
 function fromCode(code){
-  const m = String(code).replace(/\s+/g, '').match(/^ROBSGARAGE\|([\w-]+)\|([A-Za-z0-9+/=]+)$/);
-  if(!m) return {err:'That is not a backup code. Copy the whole code, starting with ROBSGARAGE.'};
+  const m = String(code).replace(/\s+/g, '').match(/^[A-Z]+GARAGE\|([\w-]+)\|([A-Za-z0-9+/=]+)$/);
+  if(!m) return {err:'That is not a backup code. Copy the whole code, starting with ACESGARAGE.'};
   if(m[1] !== KEY) return {err:'That code is from a different game.'};
   try{ const o = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(m[2]), c => c.charCodeAt(0)))); if(o && typeof o === 'object' && !Array.isArray(o)) return {data:o}; }catch(e){}
   return {err:'That code is damaged. Copy it again, all of it.'};

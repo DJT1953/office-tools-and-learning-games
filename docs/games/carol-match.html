@@ -1,0 +1,700 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Carol Match</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@700;900&family=Noto+Color+Emoji&display=swap">
+<style>
+/* Layout: one-screen music room at night. Stage on top (picture plate + Christmas tree whose 10 bulbs are the 10 notes), capped at half the screen height; word cards or the level board below. */
+:root{
+  --night:#0b1512;      /* spruce-black ground */
+  --pine:#14281f;
+  --pine-2:#1e3a2e;
+  --line:#2e5444;
+  --snow:#eef3ee;
+  --muted:#a2b9ae;
+  --gold:#f2c230;       /* Ace's Garage caution yellow */
+  --berry:#d8383b;
+  --glow:#ffd36e;
+  --ink:#121212;
+  --display:'Big Shoulders Display','Arial Narrow',Impact,sans-serif;
+  --read:'Atkinson Hyperlegible',Verdana,Tahoma,sans-serif;
+  --emoji:'Noto Color Emoji','Segoe UI Emoji','Apple Color Emoji',sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--night);color:var(--snow);font-family:var(--read);font-size:17px;line-height:1.45;overflow-x:hidden}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,select:focus-visible{outline:4px solid var(--gold);outline-offset:3px}
+
+.app{min-height:100%;max-width:calc(100vh * 1.9);margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px 18px;display:flex;flex-direction:column;gap:12px}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{font-family:var(--display);font-weight:900;font-size:clamp(20px,2.6vh,30px);letter-spacing:.06em;text-transform:uppercase;color:var(--gold);display:flex;align-items:baseline;gap:10px}
+.brand small{font-family:var(--read);font-weight:400;font-size:clamp(13px,1.6vh,17px);letter-spacing:.02em;color:var(--muted);text-transform:none}
+.lvl{margin-left:auto;font-family:var(--display);font-weight:700;font-size:clamp(17px,2.2vh,26px);letter-spacing:.05em;text-transform:uppercase;color:var(--snow)}
+.coach-btn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:6px 12px;font-size:14px}
+.coach-btn:hover{color:var(--snow);border-color:var(--muted)}
+
+/* Stage: never more than half the screen height */
+.stage{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:clamp(10px,2vw,28px);height:clamp(230px,46vh,50vh);border-radius:16px;border:2px solid var(--line);background:radial-gradient(ellipse at 70% 110%,#244a3a 0,var(--pine) 45%,#0e1d17 100%);padding:clamp(10px,1.8vh,22px);position:relative;overflow:hidden}
+.stage::before{content:"";position:absolute;inset:0;background-image:radial-gradient(2px 2px at 12% 18%,#fff8 50%,transparent 51%),radial-gradient(1.5px 1.5px at 33% 8%,#fff6 50%,transparent 51%),radial-gradient(2px 2px at 58% 22%,#fff5 50%,transparent 51%),radial-gradient(1.5px 1.5px at 84% 12%,#fff7 50%,transparent 51%),radial-gradient(2px 2px at 92% 40%,#fff4 50%,transparent 51%);pointer-events:none}
+.plate{position:relative;display:grid;place-items:center;border-radius:14px;background:radial-gradient(circle at 50% 42%,#fdfaf1 0 52%,#ece4cf 53% 58%,#f8f3e6 59%);border:3px solid #0d1712;box-shadow:inset 0 0 0 6px #fffdf7,0 8px 0 #07100c;min-height:0}
+.plate .obj{font-family:var(--emoji);font-size:min(30vh,24vw);line-height:1;filter:drop-shadow(0 6px 4px rgba(0,0,0,.18))}
+.plate .obj.pop,.plate .pic.pop{animation:pop .45s ease-out}
+/* The picture is a real photo print (white border baked into each JPEG), scaled to fill the plate under the tag */
+.plate{--pt:clamp(34px,4.6vh,50px);--pg:clamp(10px,1.4vh,16px)}
+.plate .pic{position:absolute;top:var(--pt);left:var(--pg);width:calc(100% - 2 * var(--pg));height:calc(100% - var(--pt) - var(--pg));max-width:none;object-fit:contain;filter:drop-shadow(0 7px 9px rgba(20,30,24,.32))}
+.plate .tag{position:absolute;left:12px;top:10px;font-family:var(--display);font-weight:900;font-size:clamp(14px,1.8vh,20px);letter-spacing:.12em;text-transform:uppercase;color:#5d5a4e}
+.treebox{display:flex;flex-direction:column;align-items:center;min-height:0;gap:4px}
+.treebox svg{flex:1;min-height:0;width:100%;height:100%}
+.song{font-family:var(--display);font-weight:700;font-size:clamp(16px,2.3vh,28px);letter-spacing:.04em;text-transform:uppercase;color:var(--glow);text-align:center;text-wrap:balance;line-height:1.05}
+.song small{display:block;font-family:var(--read);font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);font-size:clamp(12px,1.5vh,16px)}
+.bulb{transition:fill .25s}
+.bulb.on{filter:url(#glow)}
+.bulb.flash{fill:#fffbe8 !important}
+#star{fill:#3b3b2a;transition:fill .4s}
+#star.on{fill:var(--glow);filter:url(#glow)}
+
+.flashtext{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-family:var(--display);font-weight:900;font-size:clamp(44px,9vh,110px);letter-spacing:.04em;color:var(--glow);text-shadow:0 4px 0 #000,0 0 30px rgba(255,211,110,.55);opacity:0}
+.flashtext.show{animation:flash 1s ease-out forwards}
+
+/* Prompt row */
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.hear{display:flex;align-items:center;gap:8px;background:var(--pine);border:3px solid var(--gold);border-radius:999px;padding:4px 16px 4px 6px;font-family:var(--display);font-weight:900;font-size:clamp(18px,2.4vh,26px);letter-spacing:.06em;text-transform:uppercase}
+.hear:hover{background:var(--pine-2)}
+.hear svg{width:clamp(30px,4vh,44px);height:clamp(30px,4vh,44px);flex:none}
+.hear.talking .wave{animation:wave .8s ease-in-out infinite}
+.prompt{font-size:clamp(16px,2.1vh,24px);color:var(--muted);min-width:0}
+.pips{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.pip{width:clamp(18px,2.6vh,30px);height:clamp(18px,2.6vh,30px);border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:clamp(11px,1.6vh,18px);color:transparent}
+.pip.now{border-color:var(--gold);box-shadow:0 0 0 3px rgba(242,194,48,.25)}
+.pip.first{background:#1f6b3a;border-color:#4cd473;color:#eaffef}
+.pip.help{background:#5a4613;border-color:var(--gold);color:#fff3cf}
+
+/* Word cards: backlit gift tags; colours dealt at random so colour never gives the answer away */
+.cards{display:flex;flex-wrap:wrap;gap:clamp(12px,2vh,24px);justify-content:center;align-items:center;padding-block:4px 10px}
+.card{--bg:#b3202a;--fg:#fff;--edge:#f4f1e8;background:var(--bg);color:var(--fg);border:3px solid var(--edge);border-radius:12px;box-shadow:0 0 0 2px var(--bg),0 5px 0 2px #000;min-width:min(150px,100%);padding:clamp(6px,1vh,14px) clamp(16px,2.4vh,30px);font-family:var(--read);font-weight:700;font-size:clamp(30px,5vh,64px);line-height:1.1;white-space:nowrap;transition:transform .1s,box-shadow .1s,opacity .25s,filter .1s}
+.card.k-red{--bg:#b3202a;--fg:#fff;--edge:#f4f1e8}
+.card.k-green{--bg:#1f6b3a;--fg:#fff;--edge:#f4f1e8}
+.card.k-gold{--bg:#f2c230;--fg:#121212;--edge:#121212}
+.card.k-cream{--bg:#f4ecd8;--fg:#121212;--edge:#121212}
+.card.k-blue{--bg:#1d4f91;--fg:#fff;--edge:#f4f1e8}
+.card:hover{transform:translateY(-3px);box-shadow:0 0 0 2px var(--gold),0 8px 0 2px #000}
+.card.dim{opacity:.2;pointer-events:none;filter:grayscale(1)}
+.card.hint{animation:hint 1s ease-in-out infinite;box-shadow:0 0 0 5px #4cd473,0 5px 0 2px #000}
+.card.right{box-shadow:0 0 0 6px #4cd473,0 5px 0 2px #000}
+/* Spelling: letters hold their place while hidden, so the card keeps its size as the word comes back */
+.card .ltr{display:inline-block;visibility:hidden;transition:transform .15s ease-out}
+.card .ltr.on{visibility:visible}
+.card .ltr.now{transform:translateY(-.06em) scale(1.35);text-decoration:underline;text-decoration-thickness:.07em;text-underline-offset:.14em}
+
+/* Level board and song screen */
+.deck{display:flex;flex-direction:column;gap:14px}
+.deck h1{margin:0;font-family:var(--display);font-weight:900;font-size:clamp(40px,7vh,84px);line-height:.9;letter-spacing:.02em;text-transform:uppercase;text-wrap:balance}
+.deck h1 span{color:var(--gold)}
+.deck p{margin:0;color:var(--muted);font-size:clamp(15px,2vh,22px);max-width:62ch}
+.levels{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.lv{background:var(--pine);border:3px solid var(--line);border-radius:12px;padding:8px 10px;display:grid;gap:2px;text-align:left;min-width:0}
+.lv b{font-family:var(--display);font-weight:900;font-size:clamp(20px,2.8vh,34px);line-height:1}
+.lv span{font-size:clamp(12px,1.5vh,16px);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lv i{font-style:normal;font-size:clamp(12px,1.5vh,16px);color:#7fe39c}
+.lv.sel{border-color:var(--gold);background:#2a2a18}
+.lv:disabled{opacity:.42;cursor:not-allowed}
+.lv:hover:not(:disabled){border-color:var(--muted)}
+.btns{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.big{background:var(--gold);color:var(--ink);border:0;border-radius:14px;padding:12px 30px;font-family:var(--display);font-weight:900;font-size:clamp(24px,3.6vh,42px);letter-spacing:.06em;text-transform:uppercase;box-shadow:0 6px 0 #8a6c10;transition:transform .08s,box-shadow .08s}
+.big:hover{transform:translateY(-2px);box-shadow:0 8px 0 #8a6c10}
+.big:active{transform:translateY(4px);box-shadow:0 2px 0 #8a6c10}
+.big.ghost{background:var(--pine-2);color:var(--snow);box-shadow:0 6px 0 #050b08}
+.big:disabled{opacity:.35;cursor:default;transform:none}
+.ctl{display:flex;gap:8px}
+.pill{background:var(--pine);border:2px solid var(--line);border-radius:999px;padding:6px 18px;font-family:var(--display);font-weight:700;font-size:clamp(16px,2.1vh,22px);letter-spacing:.06em;text-transform:uppercase;color:var(--snow)}
+.pill:hover{border-color:var(--muted);background:var(--pine-2)}
+.pausebox{width:min(560px,100%);text-align:left}
+.pausebox h3{font-size:clamp(40px,7vh,72px);line-height:.9;color:var(--gold)}
+.nosound{background:#4a1f18;color:#ffd2c8;border-radius:10px;padding:10px 14px;font-size:15px;margin:0;max-width:65ch}
+
+/* Coach panel */
+.coach{position:fixed;inset:0;background:rgba(5,10,8,.84);display:grid;place-items:center;padding:16px;z-index:10}
+.sheet{background:var(--pine);border:1px solid var(--line);border-radius:14px;width:min(860px,100%);max-height:90vh;overflow:auto;padding:22px;display:grid;gap:14px}
+.sheet h3{margin:0;font-family:var(--display);font-size:30px;letter-spacing:.04em;text-transform:uppercase}
+.sheet h4{margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sheet p{margin:0;color:var(--muted);font-size:15px;max-width:70ch}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.set{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.set label{font-size:14px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:transparent;border:0;padding:6px 12px;font-size:14px;color:var(--muted)}
+.seg button.on{background:var(--gold);color:var(--ink)}
+.small{background:var(--pine-2);border:0;border-radius:8px;padding:8px 14px;font-size:14px}
+.small.danger{background:#4a1f18;color:#ffb4a6}
+.set select{background:var(--night);color:var(--snow);border:1px solid var(--line);border-radius:8px;padding:6px 8px;max-width:300px;font-size:14px}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:15px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:400}
+td.e{font-family:var(--emoji);font-size:20px}
+td.e img{display:block;width:48px;height:36px;object-fit:contain;background:#fff;border-radius:4px}
+.credits summary{cursor:pointer;color:var(--muted);font-size:14px}
+.credits summary:hover{color:var(--snow)}
+.credits ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:13px;columns:2 260px;column-gap:28px}
+.credits li{break-inside:avoid;margin-bottom:3px}
+.credits a{color:var(--snow)}
+.out{width:100%;min-height:110px;background:var(--night);color:var(--snow);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px}
+
+@keyframes pop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.08);opacity:1}100%{transform:scale(1)}}
+@keyframes flash{0%{opacity:0;transform:scale(.6)}20%{opacity:1;transform:scale(1.08)}70%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.12)}}
+@keyframes hint{50%{transform:translateY(-4px) scale(1.04)}}
+@keyframes wave{50%{opacity:.25}}
+@media (max-width:640px){
+  .stage{grid-template-columns:minmax(0,1fr) minmax(0,.9fr)}
+  .levels{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .brand small{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;animation-iteration-count:1!important}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">Ace's Garage <small>Carol Match · Game 6</small></div>
+    <div class="lvl" id="lvl"></div>
+    <button class="coach-btn" id="coachBtn" type="button">Coach</button>
+  </header>
+
+  <section class="stage" aria-label="Picture and Christmas tree">
+    <div class="plate"><span class="tag" id="plateTag">Match it</span><span class="obj" id="obj" aria-live="polite" hidden>🎄</span><img class="pic" id="pic" alt="Picture to match"></div>
+    <div class="treebox">
+      <svg viewBox="0 0 200 236" role="img" aria-label="Christmas tree with ten bulbs, one for each note">
+        <defs><filter id="glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f7a4c"/><stop offset="1" stop-color="#174a2e"/></linearGradient></defs>
+        <rect x="88" y="196" width="24" height="26" rx="3" fill="#5b3a22"/>
+        <rect x="70" y="218" width="60" height="14" rx="4" fill="#8e2b22"/>
+        <polygon points="100,104 12,200 188,200" fill="url(#tg)"/>
+        <polygon points="100,62 26,146 174,146" fill="url(#tg)"/>
+        <polygon points="100,24 42,96 158,96" fill="url(#tg)"/>
+        <path d="M30 178 Q100 198 172 170 M44 128 Q100 146 158 122 M58 82 Q100 96 142 78" stroke="#d9b648" stroke-width="2.4" fill="none" stroke-dasharray="1 5" stroke-linecap="round"/>
+        <polygon id="star" points="100,4 105.6,17 119.5,17.5 108.6,26 112.5,39.5 100,31.5 87.5,39.5 91.4,26 80.5,17.5 94.4,17"/>
+        <g id="bulbs"></g>
+      </svg>
+      <div class="song" id="songTitle"></div>
+    </div>
+    <div class="flashtext" id="flash">Merry!</div>
+  </section>
+
+  <section id="startScreen" class="deck">
+    <div class="row" style="align-items:flex-end">
+      <h1>Carol <span>Match</span></h1>
+      <p id="startNote">Match the word to the picture. Every match plays one note of a Christmas carol. Ten matches finish the tree, and the whole carol plays.</p>
+    </div>
+    <p class="nosound" id="noSound" hidden>No speaking voice was found in this browser, and the game needs one. Open it in Chrome or Edge on this computer, and check that the sound is on.</p>
+    <div class="levels" id="levels"></div>
+    <div class="btns"><button class="big" id="playBtn" type="button">Play</button></div>
+  </section>
+
+  <section id="playScreen" class="deck" hidden>
+    <div class="row">
+      <button class="hear" id="hearBtn" type="button" aria-label="Hear it again"><svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="25" fill="#f2c230"/><path d="M13 21h7l9-7v24l-9-7h-7z" fill="#121212"/><path class="wave" d="M33 19c3 4 3 10 0 14" stroke="#121212" stroke-width="3" fill="none" stroke-linecap="round"/><path class="wave" d="M37 15c5 6 5 16 0 22" stroke="#121212" stroke-width="3" fill="none" stroke-linecap="round"/></svg>Hear it</button>
+      <div class="prompt" id="prompt"></div>
+      <div class="pips" id="pips" aria-label="Notes earned"></div>
+      <div class="ctl"><button class="pill" id="pauseBtn" type="button">Pause</button><button class="pill" id="quitBtn" type="button">Quit</button></div>
+    </div>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section id="songScreen" class="deck" hidden>
+    <h1 id="doneTitle">Level done!</h1>
+    <p id="doneNote"></p>
+    <div class="btns">
+      <button class="big" id="nextBtn" type="button" disabled>Next level</button>
+      <button class="big ghost" id="againBtn" type="button">Hear the carol again</button>
+      <button class="big ghost" id="boardBtn" type="button">Levels</button>
+    </div>
+  </section>
+</div>
+
+<div class="coach" id="pause" hidden>
+  <div class="sheet pausebox" role="dialog" aria-labelledby="pauseTitle">
+    <h3 id="pauseTitle">Paused</h3>
+    <p>The voice and the music are stopped. Keep playing picks up at the same picture.</p>
+    <div class="btns"><button class="big" id="resumeBtn" type="button">Keep playing</button><button class="big ghost" id="pauseQuitBtn" type="button">Quit to levels</button></div>
+  </div>
+</div>
+
+<div class="coach" id="coach" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="coachTitle">
+    <div class="sheet-head"><h3 id="coachTitle">Coach view</h3><button class="small" id="coachClose" type="button">Close</button></div>
+    <p id="coachSummary"></p>
+    <div class="set"><label for="levelSel">Level</label><select id="levelSel"></select>
+      <label>Voice says the word</label><div class="seg" id="saySeg"><button type="button" data-v="always">Always</button><button type="button" data-v="miss">Only after a miss</button></div></div>
+    <div class="set"><label>Cards</label><div class="seg" id="cardSeg"><button type="button" data-v="auto">Auto</button><button type="button" data-v="2">2</button><button type="button" data-v="3">3</button><button type="button" data-v="4">4</button></div>
+      <label>Letters</label><div class="seg" id="caseSeg"><button type="button" data-v="title">First big</button><button type="button" data-v="caps">BIG ONLY</button><button type="button" data-v="lower">small only</button></div></div>
+    <div class="set"><label>Music</label><div class="seg" id="volSeg"><button type="button" data-v="soft">Soft</button><button type="button" data-v="normal">Normal</button><button type="button" data-v="loud">Loud</button></div>
+      <label>Spell the word after a match</label><div class="seg" id="spellSeg"><button type="button" data-v="on">On</button><button type="button" data-v="off">Off</button></div></div>
+    <div class="set"><label>Voice speed</label><div class="seg" id="rateSeg"><button type="button" data-v="0.75">Slow</button><button type="button" data-v="0.9">Normal</button><button type="button" data-v="1.05">Quick</button></div>
+      <label for="voiceSel">Voice</label><select id="voiceSel"></select><button class="small" id="voiceTest" type="button">Test voice</button></div>
+    <div class="set"><label for="songSel">Carols</label><select id="songSel"></select><button class="small" id="songPlay" type="button">Play</button><button class="small" id="songStop" type="button">Stop</button></div>
+    <h4>Levels</h4>
+    <div class="tbl"><table><thead><tr><th>Level</th><th>Words</th><th>Carol</th><th>Played</th><th>Best first-try</th><th>Last</th></tr></thead><tbody id="lvRows"></tbody></table></div>
+    <h4 id="wordHead">Words</h4>
+    <div class="tbl"><table><thead><tr><th></th><th>Word</th><th>Asked</th><th>First try</th><th>Streak</th></tr></thead><tbody id="wordRows"></tbody></table></div>
+    <p>Each level has ten two- and three-syllable words. A first-try match lights a green note, a helped match a gold one. The carols are traditional and public domain, played from the melodies printed on Wikipedia; each plays its first verse and chorus. Progress is saved in this browser on this computer only; Back up progress gives you a code to keep it safe.</p>
+    <details class="credits" id="credits"><summary>Photo credits</summary><p>The pictures are real photographs from Wikimedia Commons, cropped and resized for the game. Each name links to the original photo and its licence.</p><ul id="creditList"></ul></details>
+    <div class="set">
+      <button class="small" id="copyBtn" type="button">Copy progress report</button>
+      <button class="small" id="backupBtn" type="button">Back up progress</button>
+      <button class="small" id="restoreBtn" type="button">Restore from backup</button>
+      <button class="small danger" id="resetBtn" type="button">Reset all progress</button>
+    </div>
+    <p id="bkMsg" hidden></p>
+    <textarea class="out" id="out" readonly hidden></textarea>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+
+/* ---------- Data ----------
+   100 two- and three-syllable words with a clear picture, ten per level, everyday things first.
+   Spoken lines never use list words loosely: praise avoids them, and only the word being matched is said. */
+const LEVELS = [
+  {name:'Christmas', words:[['candle','🕯️'],['present','🎁'],['snowman','⛄'],['reindeer','🦌'],['Santa','🎅'],['cookie','🍪'],['ribbon','🎀'],['snowflake','❄️'],['angel','👼'],['teddy bear','🧸']]},
+  {name:'In the garage', words:[['hammer','🔨'],['toolbox','🧰'],['magnet','🧲'],['battery','🔋'],['screwdriver','🪛'],['padlock','🔒'],['lightbulb','💡'],['pickaxe','⛏️'],['handsaw','🪚'],['gas pump','⛽']]},
+  {name:'Animals', words:[['rabbit','🐇'],['turtle','🐢'],['monkey','🐒'],['tiger','🐅'],['zebra','🦓'],['camel','🐫'],['penguin','🐧'],['rooster','🐓'],['elephant','🐘'],['butterfly','🦋']]},
+  {name:'Treats', words:[['lemon','🍋'],['coconut','🥥'],['pineapple','🍍'],['melon','🍈'],['mango','🥭'],['olive','🫒'],['kiwi','🥝'],['chestnut','🌰'],['candy','🍬'],['lollipop','🍭']]},
+  {name:'Music', words:[['guitar','🎸'],['trumpet','🎺'],['piano','🎹'],['violin','🎻'],['banjo','🪕'],['saxophone','🎷'],['microphone','🎤'],['radio','📻'],['headphones','🎧'],['maracas','🪇']]},
+  {name:'Rides', words:[['airplane','✈️'],['rocket','🚀'],['sailboat','⛵'],['taxi','🚕'],['bicycle','🚲'],['tractor','🚜'],['pickup','🛻'],['skateboard','🛹'],['ambulance','🚑'],['fire truck','🚒']]},
+  {name:'Around the house', words:[['toothbrush','🪥'],['bathtub','🛁'],['sofa','🛋️'],['basket','🧺'],['umbrella','☂️'],['backpack','🎒'],['glasses','👓'],['necktie','👔'],['crayon','🖍️'],['envelope','✉️']]},
+  {name:'At the desk', words:[['pencil','✏️'],['notebook','📓'],['calendar','📅'],['paperclip','📎'],['camera','📷'],['telephone','☎️'],['computer','💻'],['keyboard','⌨️'],['printer','🖨️'],['trophy','🏆']]},
+  {name:'Outdoors', words:[['rainbow','🌈'],['cactus','🌵'],['tulip','🌷'],['sunflower','🌻'],['volcano','🌋'],['tornado','🌪️'],['lightning','🌩️'],['feather','🪶'],['seashell','🐚'],['pumpkin','🎃']]},
+  {name:'Wild animals', words:[['kangaroo','🦘'],['octopus','🐙'],['dolphin','🐬'],['parrot','🦜'],['peacock','🦚'],['lobster','🦞'],['giraffe','🦒'],['flamingo','🦩'],['dinosaur','🦕'],['gorilla','🦍']]}
+];
+// Ten public-domain carols, one per level: [midi note (0 = rest), beats]; b = seconds per beat. First verse and chorus, from Wikipedia's printed melodies.
+const SONGS = [{"t":"Joy to the World","b":0.5,"n":[[82,1.0],[81,0.75],[79,0.25],[77,1.5],[75,0.5],[74,1.0],[72,1.0],[70,1.5],[77,0.5],[79,1.5],[79,0.5],[81,1.5],[81,0.5],[82,3.5],[82,0.5],[82,0.5],[81,0.5],[79,0.5],[77,0.5],[77,0.75],[75,0.25],[74,0.5],[82,0.5],[82,0.5],[81,0.5],[79,0.5],[77,0.5],[77,0.75],[75,0.25],[74,0.5],[74,0.5],[74,0.5],[74,0.5],[74,0.5],[74,0.25],[75,0.25],[77,1.5],[75,0.25],[74,0.25],[72,0.5],[72,0.5],[72,0.5],[72,0.25],[74,0.25],[75,1.5],[74,0.25],[72,0.25],[74,0.5],[82,1.0],[79,0.5],[77,0.75],[75,0.25],[74,0.5],[75,0.5],[74,1.0],[72,1.0],[70,2.0]]},{"t":"Silent Night","b":0.55,"n":[[75,0.75],[77,0.25],[75,0.5],[72,1.5],[75,0.75],[77,0.25],[75,0.5],[72,1.5],[82,1.0],[82,0.5],[79,1.5],[80,1.0],[80,0.5],[75,1.5],[77,1.0],[77,0.5],[80,0.75],[79,0.25],[77,0.5],[75,0.75],[77,0.25],[75,0.5],[72,1.5],[77,1.0],[77,0.5],[80,0.75],[79,0.25],[77,0.5],[75,0.75],[77,0.25],[75,0.5],[72,1.5],[82,1.0],[82,0.5],[85,0.75],[82,0.25],[79,0.5],[80,1.5],[84,1.0],[0,0.5],[80,0.75],[75,0.25],[72,0.5],[75,0.75],[73,0.25],[70,0.5],[68,2.5],[0,0.5]]},{"t":"Hark! The Herald Angels Sing","b":0.42,"n":[[69,1.0],[74,1.0],[74,1.5],[73,0.5],[74,1.0],[78,1.0],[78,1.0],[76,1.0],[81,1.0],[81,1.0],[81,1.5],[79,0.5],[78,1.0],[76,1.0],[78,2.0],[69,1.0],[74,1.0],[74,1.5],[73,0.5],[74,1.0],[78,1.0],[78,1.0],[76,1.0],[81,1.0],[76,1.0],[76,1.5],[73,0.5],[73,1.0],[71,1.0],[69,2.0],[81,1.0],[81,1.0],[81,1.0],[74,1.0],[79,1.0],[78,1.0],[78,1.0],[76,1.0],[81,1.0],[81,1.0],[81,1.0],[74,1.0],[79,1.0],[78,1.0],[78,1.0],[76,1.0],[83,1.0],[83,1.0],[83,1.0],[81,1.0],[79,1.0],[78,1.0],[79,2.0],[76,1.0],[78,0.5],[79,0.5],[81,1.5],[74,0.5],[74,1.0],[76,1.0],[78,2.0],[83,1.5],[83,0.5],[83,1.0],[81,1.0],[79,1.0],[78,1.0],[79,2.0],[76,1.0],[78,0.5],[79,0.5],[81,1.5],[74,0.5],[74,1.0],[76,1.0],[74,2.0]]},{"t":"O Come, All Ye Faithful","b":0.45,"n":[[75,1.0],[75,2.0],[70,1.0],[75,1.0],[77,2.0],[70,2.0],[79,1.0],[77,1.0],[79,1.0],[80,1.0],[79,2.0],[77,1.0],[75,1.0],[75,2.0],[74,1.0],[72,1.0],[74,1.0],[75,1.0],[77,1.0],[79,1.0],[74,2.0],[72,1.5],[70,0.5],[70,4.0],[82,2.0],[80,1.0],[79,1.0],[80,2.0],[79,2.0],[77,1.0],[79,1.0],[75,1.0],[77,1.0],[74,2.0],[70,1.0],[75,1.0],[75,1.0],[74,1.0],[75,1.0],[77,1.0],[75,2.0],[70,1.0],[79,1.0],[79,1.0],[77,1.0],[79,1.0],[80,1.0],[79,2.0],[77,1.0],[79,1.0],[80,1.0],[79,1.0],[77,1.0],[75,1.0],[74,2.0],[75,1.0],[80,1.0],[79,2.0],[77,1.5],[75,0.5],[75,4.0]]},{"t":"We Three Kings","b":0.62,"n":[[79,1.0],[77,0.5],[75,1.0],[72,0.5],[74,0.5],[75,0.5],[74,0.5],[72,1.0],[0,0.5],[79,1.0],[77,0.5],[75,1.0],[72,0.5],[74,0.5],[75,0.5],[74,0.5],[72,1.0],[0,0.5],[75,1.0],[75,0.5],[77,1.0],[77,0.5],[79,1.0],[79,0.5],[82,0.5],[80,0.5],[79,0.5],[77,0.5],[79,0.5],[77,0.5],[75,1.0],[74,0.5],[72,1.0],[0,0.5],[74,1.0],[77,0.5],[75,1.0],[75,0.5],[75,1.0],[70,0.5],[75,1.0],[72,0.5],[75,1.0],[0,0.5],[75,1.0],[75,0.5],[75,1.0],[70,0.5],[75,1.0],[72,0.5],[75,1.0],[0,0.5],[75,1.0],[75,0.5],[77,1.0],[79,0.5],[80,1.0],[79,0.5],[77,1.0],[79,0.5],[75,1.0],[75,0.5],[75,1.0],[70,0.5],[75,1.0],[72,0.5],[75,1.5]]},{"t":"God Rest Ye Merry, Gentlemen","b":0.4,"n":[[71,1.0],[71,1.0],[78,1.0],[78,1.0],[76,1.0],[74,1.0],[73,1.0],[71,1.0],[69,1.0],[71,1.0],[73,1.0],[74,1.0],[76,1.0],[78,3.0],[71,1.0],[71,1.0],[78,1.0],[78,1.0],[76,1.0],[74,1.0],[73,1.0],[71,1.0],[69,1.0],[71,1.0],[73,1.0],[74,1.0],[76,1.0],[78,3.0],[78,1.0],[79,1.0],[76,1.0],[78,1.0],[79,1.0],[81,1.0],[83,1.0],[78,1.0],[76,1.0],[74,1.0],[71,1.0],[73,1.0],[74,1.0],[76,2.0],[74,1.0],[76,1.0],[78,2.0],[79,1.0],[78,1.0],[78,1.0],[76,1.0],[74,1.0],[73,1.0],[71,2.0],[74,0.5],[73,0.5],[71,1.0],[76,2.0],[74,1.0],[76,1.0],[78,1.0],[79,1.0],[81,1.0],[83,1.0],[78,1.0],[76,1.0],[74,1.0],[73,1.0],[71,3.0]]},{"t":"Angels We Have Heard on High","b":0.4,"n":[[78,1.0],[78,1.0],[78,1.0],[81,1.0],[81,1.5],[79,0.5],[78,2.0],[78,1.0],[76,1.0],[78,1.0],[81,1.0],[78,1.5],[76,0.5],[74,2.0],[78,1.0],[78,1.0],[78,1.0],[81,1.0],[81,1.5],[79,0.5],[78,2.0],[78,1.0],[76,1.0],[78,1.0],[81,1.0],[78,1.5],[76,0.5],[74,2.0],[81,2.0],[83,0.5],[81,0.5],[79,0.5],[78,0.5],[79,2.0],[81,0.5],[79,0.5],[78,0.5],[76,0.5],[78,2.0],[79,0.5],[78,0.5],[76,0.5],[74,0.5],[76,1.5],[69,0.5],[69,2.0],[74,1.0],[76,1.0],[78,1.0],[79,1.0],[78,2.0],[76,2.0],[81,2.0],[83,0.5],[81,0.5],[79,0.5],[78,0.5],[79,2.0],[81,0.5],[79,0.5],[78,0.5],[76,0.5],[78,2.0],[79,0.5],[78,0.5],[76,0.5],[74,0.5],[76,1.5],[69,0.5],[69,2.0],[74,1.0],[76,1.0],[78,1.0],[79,1.0],[78,2.0],[76,2.0],[74,4.0]]},{"t":"The Holly and the Ivy","b":0.45,"n":[[74,1.0],[74,0.5],[74,0.5],[74,1.0],[83,1.0],[81,1.0],[78,1.5],[74,0.5],[74,0.5],[74,0.5],[74,1.0],[83,1.0],[81,2.0],[81,0.5],[79,0.5],[78,0.5],[76,0.5],[74,1.0],[78,0.5],[78,0.5],[71,0.5],[71,0.5],[69,1.0],[74,0.5],[76,0.5],[78,0.5],[79,0.5],[78,1.0],[76,1.0],[74,2.0],[0,0.5],[74,0.5],[74,0.5],[74,0.5],[74,1.0],[83,1.0],[81,1.0],[78,1.0],[74,0.5],[74,0.5],[74,0.5],[74,0.5],[74,1.0],[83,1.0],[81,2.0],[81,0.5],[79,0.5],[78,0.5],[76,0.5],[74,1.0],[78,1.0],[71,0.5],[71,0.5],[69,1.0],[74,0.5],[76,0.5],[78,0.5],[79,0.5],[78,1.0],[76,1.0],[74,2.0]]},{"t":"Ding Dong Merrily on High","b":0.38,"n":[[75,1.0],[75,1.0],[77,0.5],[75,0.5],[74,0.5],[72,0.5],[70,3.0],[70,1.0],[72,1.0],[75,1.0],[75,1.0],[74,1.0],[75,2.0],[75,2.0],[75,1.0],[75,1.0],[77,0.5],[75,0.5],[74,0.5],[72,0.5],[70,3.0],[70,1.0],[72,1.0],[75,1.0],[75,1.0],[74,1.0],[75,2.0],[75,2.0],[82,1.5],[80,0.5],[79,0.5],[80,0.5],[82,0.5],[79,0.5],[80,1.5],[79,0.5],[77,0.5],[79,0.5],[80,0.5],[77,0.5],[79,1.5],[77,0.5],[75,0.5],[77,0.5],[79,0.5],[75,0.5],[77,1.5],[75,0.5],[74,0.5],[75,0.5],[77,0.5],[74,0.5],[75,1.5],[74,0.5],[72,0.5],[74,0.5],[75,0.5],[72,0.5],[74,1.5],[72,0.5],[70,1.0],[70,1.0],[72,1.0],[75,1.0],[75,1.0],[74,1.0],[75,2.0],[75,2.0]]},{"t":"Here We Come A-wassailing","b":0.42,"n":[[70,0.5],[70,1.0],[72,0.5],[74,1.0],[72,0.5],[70,1.0],[72,0.5],[74,1.0],[72,0.5],[70,1.0],[77,0.5],[77,1.0],[77,0.5],[77,2.5],[77,0.5],[79,1.0],[79,0.5],[77,1.0],[74,0.5],[77,1.0],[77,0.5],[75,1.0],[74,0.5],[72,1.0],[70,0.5],[72,1.0],[74,0.5],[75,1.5],[74,1.0],[75,1.0],[77,2.0],[82,1.0],[79,1.0],[77,2.0],[74,1.0],[75,1.0],[77,1.0],[77,1.0],[82,1.0],[79,1.0],[77,2.0],[74,1.0],[75,1.0],[77,2.0],[79,1.0],[74,1.0],[75,1.0],[72,1.0],[70,1.0],[69,1.0],[70,1.5],[72,0.5],[74,1.0],[70,1.0],[75,2.0],[74,1.0],[75,1.0],[77,2.0],[79,1.0],[74,1.0],[75,1.0],[72,1.0],[70,1.0],[69,1.0],[70,4.0]]}];
+const PIC = {'christmas tree':'🎄'}; LEVELS.forEach(L => L.words.forEach(([w, e]) => PIC[w] = e));
+// Each word has a real photo from Wikimedia Commons beside the page; its emoji shows only if the photo can't load.
+const photo = w => 'carol-match-photos/' + w.toLowerCase().replace(/ /g, '-') + '.jpg';
+// [word, photographer, licence, original file page]
+const CREDITS = [["christmas tree","William Warby","CC BY 2.0","https://commons.wikimedia.org/wiki/File:A1_Christmas_Tree_photo.jpg"],["candle","Candle.jpg: Bangin derivative work: Setreset","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Candle_black.jpg"],["present","Praveen from Bangalore, India","CC BY 2.0","https://commons.wikimedia.org/wiki/File:Gift_(4344132308).jpg"],["snowman","GutMaze","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Snowman_in_Indiana_2014.jpg"],["reindeer","Are G Nilsen","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Reinbukken_p%C3%A5_frisk_gr%C3%B8nt_beite._-_panoramio.jpg"],["Santa","Jacob Windham from Mobile, USA","CC BY 2.0","https://commons.wikimedia.org/wiki/File:Santa-eop2.jpg"],["cookie","Evan-Amos","Public domain","https://commons.wikimedia.org/wiki/File:Choc-Chip-Cookie.jpg"],["ribbon","Stilfehler","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Pink_Bow.jpg"],["snowflake","Alexey Kljatov","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Snowflake_macro_photography_1_(cropped).jpg"],["angel","Livioandronico2013","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Angel_on_bridge_of_angels_in_Rome.JPG"],["teddy bear","Smithsonian Museum of Natural History","CC BY-SA 2.0","https://commons.wikimedia.org/wiki/File:Teddy_bear_early_1900s_-_Smithsonian_Museum_of_Natural_History.jpg"],["hammer","Shakespeare at en.wikipedia","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Claw_hammer-1.jpg"],["toolbox","Rieul Techer","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Caisse_%C3%A0_outils_avec_petit_outillage.JPG"],["magnet","Oguraclutch","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:A-1_horseshoe-magnet-red-silver-iron-filings-AHD.jpg"],["battery","Asim18","CC BY 3.0","https://commons.wikimedia.org/wiki/File:02_-_Single_Energizer_Battery.jpg"],["screwdriver","Tool Dude8mm","CC BY 2.0","https://commons.wikimedia.org/wiki/File:Screwdriver_Crosshead_Screwdriver_Edited_2020_(49913658911).jpg"],["padlock","Jonatan Svensson Glad","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Padlock_infront_of_isolated_white_background_01.jpg"],["lightbulb","KMJ, alpha masking by Edokter","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Gluehlampe_01_KMJ.png"],["pickaxe","Hyena~commonswiki","Public domain","https://commons.wikimedia.org/wiki/File:Pickaxe.jpg"],["handsaw","Pily_platnice.jpg: Mnemosine derivative work: Bigforrap","Public domain","https://commons.wikimedia.org/wiki/File:Hand_saw_-_small.jpg"],["gas pump","Palauenc05","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Shell_petrol_pump_1930.jpg"],["rabbit","JM Ligero Loarte","CC BY 3.0","https://commons.wikimedia.org/wiki/File:Oryctolagus_cuniculus_Rcdo.jpg"],["turtle","Simonverhamme","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Sea_turtle_swimming.jpg"],["monkey","Charles J. Sharp","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Rhesus_macaque_(Macaca_mulatta)_Gokarna_3.jpg"],["tiger","Monika Betley","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Panthera_tigris_sumatran_subspecies.jpg"],["zebra","Yathin S Krishnappa","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Equus_zebra_hartmannae_-_Etosha_2015.jpg"],["camel","Jjron","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:07._Camel_Profile,_near_Silverton,_NSW,_07.07.2007.jpg"],["penguin","Godot13","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:South_Shetland-2016-Deception_Island%E2%80%93Chinstrap_penguin_(Pygoscelis_antarctica)_04.jpg"],["rooster","Steev Selby from Wollongong, Australia","CC BY-SA 2.0","https://commons.wikimedia.org/wiki/File:Rooster_crowing_nsw.jpg"],["elephant","Diego Delso","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Elefante_africano_de_sabana_(Loxodonta_africana),_parque_nacional_de_Amboseli,_Kenia,_2024-05-22,_DD_07.jpg"],["butterfly","fesoj","CC BY 2.0","https://commons.wikimedia.org/wiki/File:Fesoj_-_Papilio_machaon_(by).jpg"],["lemon","André Karwath aka Aka","CC BY-SA 2.5","https://commons.wikimedia.org/wiki/File:Lemon.jpg"],["coconut","Filo gèn'","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Coconut_on_white_background.jpg"],["pineapple","Julien Pianetti","CC0","https://commons.wikimedia.org/wiki/File:Pineapple_on_white_table.jpg"],["melon","Renee Comet (Photographer)","Public domain","https://commons.wikimedia.org/wiki/File:Cantaloupe.jpg"],["mango","Ivar Leidus","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Mangos_-_single_and_halved.jpg"],["olive","Shixart1985","CC BY 2.0","https://commons.wikimedia.org/wiki/File:Fresh_green_olives_and_black_olives_served_at_a_food_display.jpg"],["kiwi","André Karwath aka Aka","CC BY-SA 2.5","https://commons.wikimedia.org/wiki/File:Kiwi_aka.jpg"],["chestnut","Tuku","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Horse-chestnuts_on_white_background.jpg"],["candy","Evan-Amos","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Butterscotch-Candies.jpg"],["lollipop","Evan-Amos","CC0","https://commons.wikimedia.org/wiki/File:Lollipop-Rainbox-Swirl.jpg"],["guitar","NSX-Racer","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Ibanez_Artist_noBG.png"],["trumpet","Yamaha Corporation","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Yamaha_Trumpet_YTR-8335LA_crop.jpg"],["piano","Steinway & Sons","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Steinway_%26_Sons_concert_grand_piano,_model_D-274,_manufactured_at_Steinway%27s_factory_in_Hamburg,_Germany.png"],["violin","Just plain Bill","Public domain","https://commons.wikimedia.org/wiki/File:Violin_VL100.jpg"],["banjo","Arent","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Bluegrass_banjo.png"],["saxophone","Yamaha Corporation","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Yamaha_Saxophone_YTS-62.tif"],["microphone","Holger.Ellgaard","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Shure_mikrofon_55S.jpg"],["radio","Joe Haupt from USA","CC BY-SA 2.0","https://commons.wikimedia.org/wiki/File:Vintage_Delmonico_7_Transistor_Clock_Radio,_Model_TR-7C,_Made_In_Japan,_Circa_1963_(14866925223).jpg"],["headphones","Sprinno","CC0","https://commons.wikimedia.org/wiki/File:Headphones_on_white_background.jpg"],["maracas","Axel Heymann","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Maracas.jpg"],["airplane","NASA/Lori Losey","Public domain","https://commons.wikimedia.org/wiki/File:Stargazer_and_Pegasus_F43_in_flight_over_Atlantic_(KSC-20161212-PH_LAL01_0009).jpg"],["rocket","NASA/Sandra Joseph and Kevin O'Connell","Public domain","https://commons.wikimedia.org/wiki/File:Ares_I-X_launch_08.jpg"],["sailboat","Ludovic Péron","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Moonbeam_-_Brest_2008-10.jpg"],["taxi","S5A-0043","CC BY 4.0","https://commons.wikimedia.org/wiki/File:(USA-New_York)_NYC_Medallion_Cab_Toyota_RAV4_NY-Taxi-Y202490C_2024-06-15.jpg"],["bicycle","齐健 from Peking","CC BY 2.0","https://commons.wikimedia.org/wiki/File:Left_side_of_Flying_Pigeon.jpg"],["tractor","Dominicus Johannes Bergsma","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Allis-Chalmers_tractor_1937.JPG"],["pickup","Mr.choppers","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:1994_Toyota_T100_Deluxe,_rear_left.jpg"],["skateboard","Methem (Mikko J. Putkonen)","CC BY 4.0","https://commons.wikimedia.org/wiki/File:1990s_skateboard_in_Tornio_20190608_001.jpg"],["ambulance","Jakub Hałun","CC BY 4.0","https://commons.wikimedia.org/wiki/File:New_York_Fire_Department_Ambulance_at_Pulaski_Day_Parade,_20231001_1350_1160.jpg"],["fire truck","Jakub Hałun","CC BY 4.0","https://commons.wikimedia.org/wiki/File:Mack_Truck_FDNY_Engine_2_at_Pulaski_Day_Parade,_20231001_1350_1169.jpg"],["toothbrush","Jorge Barrios","Public domain","https://commons.wikimedia.org/wiki/File:Cepillo_Duralon.jpg"],["bathtub","Yannick Trottier (ytrottier)","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Clawfoot_bathtub.jpg"],["sofa","Ildar Sagdejev (Specious)","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:2009-05-16_Main_office_lobby_at_Hampton_Forest_Apartments.jpg"],["basket","Jeremy Noble","CC BY 2.0","https://commons.wikimedia.org/wiki/File:Picnic_basket_01.jpg"],["umbrella","MONNIN Jacques","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:M0354_000727-005_1.jpg"],["backpack","de:Benutzer:sjr","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Rucksack1.jpg"],["glasses","Yapparina","CC0","https://commons.wikimedia.org/wiki/File:Black_Titanium_Frame_Eyeglasses,_JINS_MTF-16S-151B,_1.jpg"],["necktie","Bvneckties","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:L85HS19_Blake_vincent_scot_stiped_silk_necktie_2.jpg"],["crayon","Ks.mini","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Crayons_with_colors.JPG"],["envelope","Unknown photographer","Public domain","https://commons.wikimedia.org/wiki/File:Envelope_-_Boonville_Address-000.jpg"],["pencil","Original uploader was Dmgerman at en.wikipedia","CC BY 3.0","https://commons.wikimedia.org/wiki/File:Pencils_hb.jpg"],["notebook","Dietmar Rabich","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Spiralbinder%C3%BCcken_--_2022_--_9722.jpg"],["calendar","Claudio Elias","Public domain","https://commons.wikimedia.org/wiki/File:WallCalendar.jpg"],["paperclip","Hawyih","Public domain","https://commons.wikimedia.org/wiki/File:Wanzijia.jpg"],["camera","Kameraprojekt Graz 2015","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:LEI0440_Leica_IIIf_chrom_-_Sn._580566_1951-52-M39_Blitzsynchron_front_view-6531_hf-.jpg"],["telephone","Rama","CC BY-SA 2.0 fr","https://commons.wikimedia.org/wiki/File:Telephone_modele_U43-MGR_Lyon-IMG_9923.jpg"],["computer","Aaron Patterson from Redding CA","CC BY 2.0","https://commons.wikimedia.org/wiki/File:HP_Pavilion_dv2000_laptop.jpg"],["keyboard","Vugluskr","Public domain","https://commons.wikimedia.org/wiki/File:Cherry-keyboard-big-Enter.jpg"],["printer","Thiemo Schuff","CC BY-SA 3.0 de","https://commons.wikimedia.org/wiki/File:HP_Laserjet_5_DN_1.jpg"],["trophy","en:Moriori","Public domain","https://commons.wikimedia.org/wiki/File:76MelbCup.jpg"],["rainbow","Eric Rolph at English Wikipedia","CC BY-SA 2.5","https://commons.wikimedia.org/wiki/File:Double-alaskan-rainbow.jpg"],["cactus","Tomascastelazo","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Carnegiea_gigantea_or_Sahuaro_or_Saguaro.jpg"],["tulip","Amada44","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Tulip_opening_on_white_background_1986.png"],["sunflower","Johann Jaritz","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Eberndorf_K%C3%B6cking_Sonnenblumenfeld_Biohof_Tomic_18072014_0792.jpg"],["volcano","Cyrus Read Geophysicist USGS","Public domain","https://commons.wikimedia.org/wiki/File:Augustine_volcano_Jan_24_2006_-_Cyrus_Read.jpg"],["tornado","Justin Hobson (Justin1569 at English Wikipedia)","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:F5_tornado_Elie_Manitoba_2007.jpg"],["lightning","Friedrich Haag","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:004_2018_05_14_Extremes_Wetter.jpg"],["feather","Joao Estevao Andrade de Freitas","Public domain","https://commons.wikimedia.org/wiki/File:A_single_white_feather_closeup.jpg"],["seashell","Didier Descouens","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Conque_Magdalenienne_de_Marsoulas.jpg"],["pumpkin","Mozzihh","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Pumpkin_2108-1292.jpg"],["kangaroo","JJ Harrison","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Macropus_giganteus_-_Brunkerville.jpg"],["octopus","albert kok","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Octopus2.jpg"],["dolphin","NASA","Public domain","https://commons.wikimedia.org/wiki/File:Tursiops_truncatus_01-cropped.jpg"],["parrot","Christopher Kuszajewski","CC0","https://commons.wikimedia.org/wiki/File:Macaw_parrot_sitting_on_a_tree_branch.jpg_.jpg"],["peacock","Rohit Sharma (some additional editing by Cart)","CC BY 4.0","https://commons.wikimedia.org/wiki/File:Indian_Peacock_courtship_display_at_Pench_national_park_(April,_2024)_08,_edited.jpg"],["lobster","Des Colhoun","CC BY-SA 2.0","https://commons.wikimedia.org/wiki/File:Lobster_prior_to_release_into_the_Moray_Firth_-_geograph.org.uk_-_1415987.jpg"],["giraffe","Rob Hooft","CC BY-SA 3.0","https://commons.wikimedia.org/wiki/File:Giraffe-closeup-head.jpg"],["flamingo","Valdiney Pimenta","CC BY 2.0","https://commons.wikimedia.org/wiki/File:Flamingos_Laguna_Colorada.jpg"],["dinosaur","Athulvis","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Skeleton_of_Tyrannosaurus_2.jpg"],["gorilla","Thurundir","CC BY-SA 4.0","https://commons.wikimedia.org/wiki/File:Gorille_des_plaines_de_l%27ouest_%C3%A0_l%27Espace_Zoologique.jpg"]];
+const PRE = {};
+function preload(words){ words.forEach(w => { if(!PRE[w]){ const i = new Image(); i.src = photo(w); PRE[w] = i; } }); }
+const KEY = 'aces-garage-g6-v1';
+const BULB_XY = [[38,186],[78,190],[122,190],[162,186],[56,136],[100,140],[144,136],[72,90],[128,90],[100,58]];
+const BULB_COL = ['#ff4b4b','#ffc93c','#4fb4ff','#56d97b','#ff7ae0','#ff8a3c','#b48cff','#ff4b4b','#4fb4ff','#ffc93c'];
+
+const P_DEF = {level:1, unlocked:1, levels:{}, words:{}, set:{say:'always', cards:'auto', kase:'title', tune:'note', spell:'on', vol:'normal', rate:0.9, voice:''}};
+function load(){ try{ const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; }catch(e){ return null; } }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(P)); }catch(e){} }
+function merge(o){ const p = JSON.parse(JSON.stringify(P_DEF)); if(o && typeof o === 'object'){ Object.assign(p, o); p.set = Object.assign(JSON.parse(JSON.stringify(P_DEF.set)), o.set || {}); p.levels = o.levels || {}; p.words = o.words || {}; } p.unlocked = Math.max(1, Math.min(10, +p.unlocked || 1)); p.level = Math.max(1, Math.min(p.unlocked, +p.level || 1)); return p; }
+const P = merge(load());
+const R = {n:1, order:[], i:0, target:null, misses:0, first:0, results:[], locked:true, token:0, prompt:'', promptAce:'', idle:null, song:null};
+const W = w => P.words[w] || (P.words[w] = {seen:0, first:0, streak:0, last:null});
+
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const shuffle = a => { for(let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const wait = ms => new Promise(r => setTimeout(r, ms));
+function disp(w, k){ k = k || P.set.kase; return k === 'caps' ? w.toUpperCase() : k === 'lower' ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1); }
+function show(id){ ['startScreen', 'playScreen', 'songScreen'].forEach(s => $('#' + s).hidden = s !== id); }
+
+/* ---------- Voice ---------- */
+const hasVoice = 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined';
+let voice = null, speaking = false, speakId = 0;
+function scoreVoice(v){
+  const n = v.name.toLowerCase(); let sc = 0;
+  if(/natural|neural|online|premium|enhanced/.test(n)) sc += 50;
+  if(/google uk english male/.test(n)) sc += 30;
+  if(/\b(guy|andrew|christopher|eric|davis|brian|roger|steffan|tony|jason|ryan|thomas|daniel|aaron|tom|alex|fred|david|mark|james|george)\b/.test(n)) sc += 20;
+  if(/\bmale\b/.test(n)) sc += 15;
+  if(/female|zira|aria|jenny|samantha|victoria|karen|moira|tessa|susan|hazel|libby|sonia|emma|ava|michelle|serena|kate|ana\b/.test(n)) sc -= 80;
+  if(/en[-_]us/i.test(v.lang)) sc += 5;
+  return sc;
+}
+const englishVoices = () => hasVoice ? speechSynthesis.getVoices().filter(v => /^en([-_]|$)/i.test(v.lang)).sort((a, b) => scoreVoice(b) - scoreVoice(a)) : [];
+function pickVoice(){ if(!hasVoice) return; const en = englishVoices(); voice = (P.set.voice && en.find(v => v.name === P.set.voice)) || en[0] || null; }
+if(hasVoice){ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+function say(text){
+  return new Promise(res => {
+    if(!hasVoice){ setTimeout(res, 500); return; }
+    const id = ++speakId;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    if(voice) u.voice = voice;
+    u.rate = P.set.rate; u.pitch = voice && /natural|neural|online/i.test(voice.name) ? 1 : 0.85;
+    let done = false;
+    const fin = () => { if(done) return; done = true; if(id === speakId){ speaking = false; $('#hearBtn').classList.remove('talking'); } res(); };
+    u.onend = fin; u.onerror = fin;
+    setTimeout(fin, 1500 + text.length * 95 / P.set.rate);   // safety net if the browser never reports the end
+    speaking = true; $('#hearBtn').classList.add('talking');
+    setTimeout(() => { if(id === speakId) speechSynthesis.speak(u); }, 70);   // Chrome drops speech queued right after cancel()
+  });
+}
+// Ace's name in about one line in three: it follows praise and leads a command.
+let nameTick = 0;
+const named = (plain, withName) => (++nameTick % 3 === 0) ? withName : plain;
+const PRAISE = ['Nailed it.', 'Good eye.', 'Perfect.', "That's the one.", 'Excellent.', 'Smooth.'];
+const PRAISE_ACE = ['Nailed it, Ace.', 'Good eye, Ace.', 'Perfect, Ace.', "That's the one, Ace.", 'Excellent, Ace.'];
+const ASSIST = ['Got it.', 'That works.', 'All right.'];
+const ASSIST_ACE = ['Got it, Ace.', 'That works, Ace.', 'All right, Ace.'];
+
+/* ---------- Music: a music box with a little room sound ---------- */
+let AC = null, BUS = null, ROOM = null;
+const VOLS = {soft:0.45, normal:0.8, loud:1.15};
+function audio(){
+  if(!AC){
+    try{
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      const comp = AC.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 3;
+      BUS = AC.createGain(); BUS.gain.value = VOLS[P.set.vol] || 0.8; BUS.connect(comp); comp.connect(AC.destination);
+      ROOM = AC.createGain(); ROOM.gain.value = 0.24;
+      const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3000; ROOM.connect(lp);
+      [0.113, 0.171, 0.239].forEach(dt => { const d = AC.createDelay(1), fb = AC.createGain(); d.delayTime.value = dt; fb.gain.value = 0.34; lp.connect(d); d.connect(fb); fb.connect(d); d.connect(BUS); });
+    }catch(e){ AC = null; }
+  }
+  if(AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function bus(){ const g = AC.createGain(); g.connect(BUS); g.connect(ROOM); return g; }
+const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+// One plucked comb tooth: bright partials, quick strike, long ring.
+function tooth(dest, m, t, len, vel){
+  const f = hz(m), ring = Math.min(2.6, 0.9 + len * 1.3);
+  [[1, 1], [2, .3], [3, .11], [4.16, .06], [5.43, .035]].forEach(([h, a]) => {
+    const o = AC.createOscillator(), g = AC.createGain(); o.type = 'sine'; o.frequency.value = f * h;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.17 * a * vel, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + ring / Math.sqrt(h));
+    o.connect(g); g.connect(dest); o.start(t); o.stop(t + ring + 0.05);
+  });
+}
+function pitched(song){ return song.n.filter(x => x[0]); }
+// Plays notes [from, to) of a song with its rhythm; onNote(index) fires as each pitched note sounds. Returns {stop, done}.
+function playNotes(song, from, to, onNote){
+  if(!audio()) return {stop(){}, done:wait(500)};
+  const b = bus(), t0 = AC.currentTime + 0.12, timers = [];
+  let t = 0, k = -1, stopped = false;
+  for(const [m, d] of song.n){
+    if(m) k++;
+    if(k < from) continue;          // before the window, rests included
+    if(k >= to) break;              // past the window
+    if(m){
+      const at = t, idx = k;
+      tooth(b, m, t0 + at, d * song.b, idx === to - 1 ? 1 : 0.85);
+      if(onNote) timers.push(setTimeout(() => { if(!stopped) onNote(idx); }, (0.12 + at) * 1000));
+    }
+    t += d * song.b;                // rests inside the window keep their time
+  }
+  const total = t;
+  let finish; const done = new Promise(r => finish = r);
+  timers.push(setTimeout(() => finish(), (0.12 + total + 0.6) * 1000));
+  return {done, stop(){ stopped = true; timers.forEach(clearTimeout); try{ b.gain.setTargetAtTime(0.0001, AC.currentTime, 0.08); setTimeout(() => b.disconnect(), 600); }catch(e){} finish(); }};
+}
+function chime(){ if(!audio()) return; const b = bus(); [79, 84, 88].forEach((m, i) => tooth(b, m, AC.currentTime + 0.05 + i * 0.09, 0.3, 0.55)); }
+function thud(){ if(!audio()) return; const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.18); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24); o.connect(g); g.connect(BUS); o.start(t); o.stop(t + 0.3); }
+
+/* ---------- Tree ---------- */
+const bulbs = BULB_XY.map(([x, y], i) => {
+  const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 7.5); c.setAttribute('class', 'bulb'); c.setAttribute('fill', '#2b3a33');
+  c.setAttribute('stroke', '#0c1612'); c.setAttribute('stroke-width', '1.5'); $('#bulbs').appendChild(c); return c;
+});
+function lightTree(n, star){ bulbs.forEach((c, i) => { const on = i < n; c.classList.toggle('on', on); c.setAttribute('fill', on ? BULB_COL[i] : '#2b3a33'); }); $('#star').classList.toggle('on', !!star); }
+function flashBulb(i){ const c = bulbs[i % 10]; c.classList.add('flash'); setTimeout(() => c.classList.remove('flash'), 180); }
+function flashText(t){ const f = $('#flash'); f.textContent = t; f.classList.remove('show'); void f.offsetWidth; f.classList.add('show'); }
+function setSong(n, sub){ $('#songTitle').innerHTML = ''; const t = document.createElement('span'); t.textContent = SONGS[n - 1].t; $('#songTitle').append(t); if(sub){ const s = document.createElement('small'); s.textContent = sub; $('#songTitle').append(s); } }
+function pop(el){ el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+function setObj(w, tag){
+  const o = $('#obj'), p = $('#pic'), src = photo(w);
+  const emoji = () => { p.hidden = true; o.hidden = false; o.textContent = PIC[w] || ''; pop(o); };
+  p.dataset.w = w; p.onerror = () => { if(p.dataset.w === w) emoji(); };
+  p.onload = () => { if(p.dataset.w === w) p.style.visibility = ''; };
+  if(PRE[w] && PRE[w].complete && !PRE[w].naturalWidth) emoji();   // already known not to load
+  else {
+    o.hidden = true; p.hidden = false;
+    if(p.getAttribute('src') !== src){ p.style.visibility = 'hidden'; p.src = src; }   // never leave the last picture showing under the new word
+    if(p.complete && p.naturalWidth) p.style.visibility = '';
+    pop(p);
+  }
+  $('#plateTag').textContent = tag || '';
+}
+
+/* ---------- Level board ---------- */
+function renderBoard(){
+  const box = $('#levels'); box.innerHTML = '';
+  LEVELS.forEach((L, i) => {
+    const n = i + 1, open = n <= P.unlocked, rec = P.levels[n];
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'lv' + (n === P.level ? ' sel' : ''); b.disabled = !open;
+    b.innerHTML = `<b>${n}</b><span></span><i></i>`;
+    b.querySelector('span').textContent = open ? L.name : 'Locked';
+    b.querySelector('i').textContent = rec && rec.plays ? `Done · best ${rec.best} of 10` : '';
+    b.setAttribute('aria-label', `Level ${n}, ${open ? L.name : 'locked'}`);
+    b.addEventListener('click', () => { P.level = n; save(); renderBoard(); say(`Level ${n}. ${L.name}.`); });
+    box.appendChild(b);
+  });
+  const done = Object.keys(P.levels).filter(k => P.levels[k].plays).length;
+  lightTree(done, done >= 10); setSong(P.level, `Level ${P.level} carol`); preload(['christmas tree', ...LEVELS[P.level - 1].words.map(x => x[0])]); setObj(LEVELS[P.level - 1].words[0][0], LEVELS[P.level - 1].name);
+  $('#lvl').textContent = `${done} of 10 levels done`;
+  $('#playBtn').textContent = `Play level ${P.level}`;
+}
+
+/* ---------- Play ---------- */
+function choiceCount(){ const c = P.set.cards; if(c !== 'auto') return +c; return P.levels[R.n] && P.levels[R.n].plays ? 3 : 2; }
+function distractors(target, n){
+  const pool = shuffle(LEVELS[R.n - 1].words.map(x => x[0]).filter(w => w !== target));
+  const diff = pool.filter(w => w[0].toLowerCase() !== target[0].toLowerCase()), same = pool.filter(w => !diff.includes(w));
+  return diff.concat(same).slice(0, n);
+}
+function renderPips(){
+  const el = $('#pips'); el.innerHTML = '';
+  for(let i = 0; i < 10; i++){ const d = document.createElement('span'); const r = R.results[i]; d.className = 'pip' + (r ? ' ' + r : i === R.i ? ' now' : ''); d.textContent = '♪'; el.appendChild(d); }
+}
+function clearIdle(){ if(R.idle){ clearTimeout(R.idle); R.idle = null; } }
+function armIdle(){
+  clearIdle(); const tok = R.token;
+  R.idle = setTimeout(() => { if(tok !== R.token || R.locked) return; say(R.promptAce);
+    R.idle = setTimeout(() => { if(tok !== R.token || R.locked) return; say(R.prompt); }, 15000); }, 11000);
+}
+async function startLevel(n){
+  audio(); stopSong(); clearIdle();
+  Object.assign(R, {n, order:shuffle(LEVELS[n - 1].words.map(x => x[0])), i:0, misses:0, first:0, results:[], locked:true, token:R.token + 1});
+  const tok = R.token;
+  P.level = n; save();
+  show('playScreen'); $('#cards').innerHTML = ''; $('#prompt').textContent = ''; renderPips();
+  lightTree(0, false); setSong(n, 'Each match plays a note'); $('#lvl').textContent = `Level ${n} · ${LEVELS[n - 1].name}`;
+  preload(LEVELS[n - 1].words.map(x => x[0])); setObj('christmas tree', LEVELS[n - 1].name);
+  const first = !Object.keys(P.levels).length;
+  await say(first ? 'Here is how it works. Look at the picture, then click the word that goes with it. Every match plays one note of a Christmas carol.'
+    : named(`Level ${n}. ${LEVELS[n - 1].name}.`, `Level ${n}, Ace. ${LEVELS[n - 1].name}.`));
+  if(tok !== R.token) return;
+  nextWord();
+}
+const DEAL = ['k-red', 'k-green', 'k-gold', 'k-cream', 'k-blue'];
+// The voice says a lone capital letter by its name. Sound-alike spellings ("ar", "ee") get spelled out letter by letter instead.
+const LETTER_SAY = {};   // any letter a voice still gets wrong, written the way it says it right
+// The matched card goes blank, then the word comes back one letter a second while the voice names each letter.
+async function spell(el, w, tok){
+  const shown = disp(w);
+  el.classList.remove('hint'); el.textContent = '';
+  const spans = [...shown].map(ch => { const s = document.createElement('span'); s.className = 'ltr'; s.textContent = ch === ' ' ? '\u00a0' : ch; el.append(s); return s; });
+  await wait(500);
+  for(let i = 0; i < spans.length; i++){
+    if(tok !== R.token) return;
+    spans.forEach(s => s.classList.remove('now'));
+    spans[i].classList.add('on');
+    if(shown[i] === ' '){ await wait(400); continue; }
+    spans[i].classList.add('now');
+    const L = shown[i].toUpperCase(), talk = say(LETTER_SAY[L] || L);
+    await (i === spans.length - 1 ? Promise.all([talk, wait(1000)]) : wait(1000));
+  }
+  spans.forEach(s => s.classList.remove('now'));
+}
+async function nextWord(){
+  clearIdle();
+  if(R.i >= 10){ levelDone(); return; }
+  const tok = ++R.token, w = R.target = R.order[R.i];
+  R.misses = 0;
+  setObj(w, `Note ${R.i + 1} of 10`);
+  const box = $('#cards'); box.innerHTML = '';
+  const cols = shuffle(DEAL.slice());
+  shuffle([w, ...distractors(w, choiceCount() - 1)]).forEach((x, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'card ' + cols[i % cols.length]; b.textContent = disp(x); b.dataset.w = x;
+    b.addEventListener('click', () => onCard(b)); box.appendChild(b);
+  });
+  renderPips();
+  if(P.set.say === 'always'){ R.prompt = `Find ${w}.`; R.promptAce = `Ace, find ${w}.`; }
+  else { R.prompt = 'Find the word for this picture.'; R.promptAce = 'Ace, find the word for this picture.'; }
+  $('#prompt').textContent = P.set.say === 'always' ? '' : 'Which word goes with the picture?';
+  R.locked = false;
+  await say(named(R.prompt, R.promptAce));
+  if(tok === R.token && !R.locked) armIdle();
+}
+async function onCard(el){
+  if(R.locked) return;
+  const w = el.dataset.w, tok = R.token, t = R.target;
+  clearIdle();
+  if(w === t){
+    R.locked = true; el.classList.add('right');
+    document.querySelectorAll('#cards .card').forEach(b => { if(b !== el) b.classList.add('dim'); });
+    const firstTry = R.misses === 0, st = W(t); st.seen++; st.last = Date.now();
+    if(firstTry){ st.first++; st.streak++; R.first++; } else st.streak = 0;
+    save();
+    R.results[R.i] = firstTry ? 'first' : 'help';
+    const k = R.i, song = SONGS[R.n - 1];
+    renderPips();
+    if(P.set.spell !== 'off'){ await spell(el, t, tok); if(tok !== R.token) return; }
+    lightTree(k + 1, false);
+    const play = R.song = playNotes(song, 0, k + 1, idx => flashBulb(idx));   // every match replays the tune so far, in rhythm
+    await Promise.race([play.done, wait(9000)]);
+    if(tok !== R.token) return;
+    await say(firstTry ? named(pick(PRAISE), pick(PRAISE_ACE)) : named(pick(ASSIST), pick(ASSIST_ACE)));
+    if(tok !== R.token) return;
+    R.i++; nextWord();
+    return;
+  }
+  R.misses++; thud();
+  el.classList.add('dim'); el.disabled = true;
+  const left = [...document.querySelectorAll('#cards .card:not(.dim)')];
+  const right = left.find(b => b.dataset.w === t), hint = R.misses >= 2 || left.length <= 1;
+  if(hint && right) right.classList.add('hint');
+  R.prompt = hint ? `Click ${t}.` : `Find ${t}.`; R.promptAce = hint ? `Ace, click ${t}.` : `Ace, find ${t}.`;
+  $('#prompt').textContent = '';
+  await say(`${named(`That one says ${w}.`, `Close, Ace. That one says ${w}.`)} ${hint ? `Here is ${t}. Ace, click ${t}.` : `Ace, find ${t}.`}`);
+  if(tok === R.token && !R.locked) armIdle();
+}
+function stopSong(){ if(R.song){ R.song.stop(); R.song = null; } }
+async function playCarol(n, tok){
+  stopSong();
+  const song = SONGS[n - 1]; R.song = playNotes(song, 0, 1e9, i => flashBulb(i));
+  await R.song.done;
+  return tok === R.token;
+}
+async function levelDone(){
+  R.locked = true; clearIdle();
+  const n = R.n, tok = ++R.token, rec = P.levels[n] || (P.levels[n] = {plays:0, best:0, last:null});
+  rec.plays++; rec.best = Math.max(rec.best, R.first); rec.last = Date.now();
+  if(n < 10){ P.unlocked = Math.max(P.unlocked, n + 1); preload(LEVELS[n].words.map(x => x[0])); }
+  save();
+  lightTree(10, true); chime(); flashText('Merry!');
+  show('songScreen'); $('#nextBtn').disabled = true;
+  $('#doneTitle').textContent = n < 10 ? `Level ${n} done, Ace!` : 'All ten levels done!';
+  $('#doneNote').textContent = `${R.first} of 10 on the first try.`;
+  $('#nextBtn').textContent = n < 10 ? 'Next level' : 'Back to the levels';
+  setSong(n, 'Verse and chorus');
+  await wait(700);   // let the chime finish; the carol plays with no announcement
+  if(tok !== R.token) return;
+  const ok = await playCarol(n, tok);
+  if(!ok) return;
+  $('#nextBtn').disabled = false;
+  $('#doneNote').textContent = `${R.first} of 10 on the first try.`;
+  await say(n < 10 ? 'Ace, click Next level.' : "That's every carol on the tree, Ace. Merry Christmas!");
+}
+
+/* ---------- Buttons ---------- */
+$('#playBtn').addEventListener('click', () => startLevel(P.level));
+$('#nextBtn').addEventListener('click', () => { if(R.n < 10) startLevel(R.n + 1); else { R.token++; stopSong(); P.level = 10; save(); renderBoard(); show('startScreen'); } });
+$('#againBtn').addEventListener('click', async () => { audio(); const tok = ++R.token; $('#nextBtn').disabled = true; if(await playCarol(R.n, tok)) $('#nextBtn').disabled = false; });
+$('#boardBtn').addEventListener('click', () => { R.token++; stopSong(); clearIdle(); renderBoard(); show('startScreen'); });
+$('#hearBtn').addEventListener('click', () => { if(R.prompt && !R.locked){ say(R.prompt); armIdle(); } });
+
+/* ---------- Pause and Quit ---------- */
+function haltAll(){ R.token++; R.locked = true; stopSong(); clearIdle(); if(hasVoice) speechSynthesis.cancel(); }
+function pauseGame(){ if($('#playScreen').hidden || !$('#pause').hidden) return; haltAll(); $('#pause').hidden = false; $('#resumeBtn').focus(); }
+function resumeGame(){
+  $('#pause').hidden = true;
+  const done = !!R.results[R.i], misses = done ? 0 : R.misses;
+  if(done) R.i++;   // paused after a match: that picture is done
+  lightTree(R.results.filter(Boolean).length, false); renderPips();
+  nextWord();
+  R.misses = misses;   // a miss before the pause still counts against a first try
+}
+function quitLevel(){ $('#pause').hidden = true; haltAll(); renderBoard(); show('startScreen'); }
+$('#pauseBtn').addEventListener('click', pauseGame);
+$('#quitBtn').addEventListener('click', quitLevel);
+$('#resumeBtn').addEventListener('click', resumeGame);
+$('#pauseQuitBtn').addEventListener('click', quitLevel);
+document.addEventListener('keydown', e => { if(e.key !== 'Escape' || !$('#coach').hidden) return; if(!$('#pause').hidden) resumeGame(); else pauseGame(); });
+
+/* ---------- Coach panel ---------- */
+function fmtDate(t){ return t ? new Date(t).toLocaleDateString(undefined, {month:'short', day:'numeric'}) : '—'; }
+function segOn(id, val){ document.querySelectorAll(`#${id} button`).forEach(b => b.classList.toggle('on', b.dataset.v === String(val))); }
+function renderCoach(){
+  const done = Object.keys(P.levels).filter(k => P.levels[k].plays).length;
+  $('#coachSummary').textContent = `${done} of 10 levels finished. Levels open: 1 to ${P.unlocked}. Playing next: level ${P.level}, ${LEVELS[P.level - 1].name}, with ${SONGS[P.level - 1].t}.`;
+  $('#levelSel').innerHTML = LEVELS.map((L, i) => `<option value="${i + 1}">${i + 1} · ${L.name}</option>`).join(''); $('#levelSel').value = P.level;
+  $('#songSel').innerHTML = SONGS.map((s, i) => `<option value="${i + 1}">${i + 1} · ${s.t}</option>`).join('');
+  segOn('saySeg', P.set.say); segOn('cardSeg', P.set.cards); segOn('caseSeg', P.set.kase); segOn('volSeg', P.set.vol); segOn('spellSeg', P.set.spell); segOn('rateSeg', P.set.rate);
+  const vs = englishVoices(), sel = $('#voiceSel');
+  sel.innerHTML = vs.length ? vs.map(v => `<option value="${v.name.replace(/"/g, '&quot;')}">${v.name}</option>`).join('') : '<option>No voices found</option>';
+  if(voice) sel.value = voice.name;
+  $('#lvRows').innerHTML = LEVELS.map((L, i) => { const r = P.levels[i + 1] || {}; return `<tr><td>${i + 1} · ${L.name}</td><td>${L.words.length}</td><td>${SONGS[i].t}</td><td>${r.plays || 0}</td><td>${r.plays ? r.best + ' of 10' : '—'}</td><td>${fmtDate(r.last)}</td></tr>`; }).join('');
+  $('#wordHead').textContent = `Words in level ${P.level}`;
+  $('#wordRows').innerHTML = LEVELS[P.level - 1].words.map(([w, e]) => { const s = P.words[w] || {seen:0, first:0, streak:0}; return `<tr><td class="e" data-w="${w}"></td><td>${disp(w, 'title')}</td><td>${s.seen}</td><td>${s.seen ? Math.round(100 * s.first / s.seen) + '%' : '—'}</td><td>${s.streak}</td></tr>`; }).join('');
+  $('#wordRows').querySelectorAll('td.e').forEach(td => { const w = td.dataset.w, i = new Image(); i.alt = ''; i.onerror = () => { td.textContent = PIC[w]; }; i.src = photo(w); td.append(i); });
+  const ul = $('#creditList');
+  if(!ul.childElementCount) CREDITS.forEach(([w, who, lic, url]) => { const li = document.createElement('li'), a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = disp(w, 'title'); li.append(a, ` · ${who} · ${lic}`); ul.append(li); });
+  $('#resetBtn').textContent = 'Reset all progress'; $('#resetBtn').dataset.arm = '';
+}
+function report(){
+  const lines = [`Ace's Garage — Carol Match progress (${new Date().toLocaleDateString()})`, `Levels open: 1 to ${P.unlocked}`, ''];
+  LEVELS.forEach((L, i) => { const r = P.levels[i + 1]; if(r && r.plays) lines.push(`Level ${i + 1} ${L.name}: played ${r.plays}, best ${r.best} of 10 first try, last ${fmtDate(r.last)}`); });
+  lines.push('');
+  LEVELS.forEach(L => L.words.forEach(([w]) => { const s = P.words[w]; if(s && s.seen) lines.push(`${disp(w, 'title').padEnd(12)} asked ${s.seen}, first try ${s.first}, streak ${s.streak}`); }));
+  return lines.join('\n');
+}
+function segWire(id, fn){ $('#' + id).addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; fn(b.dataset.v); save(); renderCoach(); }); }
+segWire('saySeg', v => P.set.say = v);
+segWire('cardSeg', v => P.set.cards = v);
+segWire('caseSeg', v => P.set.kase = v);
+segWire('volSeg', v => { P.set.vol = v; if(BUS) BUS.gain.value = VOLS[v]; chime(); });
+segWire('spellSeg', v => P.set.spell = v);
+segWire('rateSeg', v => { P.set.rate = +v; say('This is the voice speed for Ace.'); });
+$('#levelSel').addEventListener('change', e => { P.level = +e.target.value; P.unlocked = Math.max(P.unlocked, P.level); save(); renderCoach(); if(!$('#startScreen').hidden) renderBoard(); });
+$('#voiceSel').addEventListener('change', e => { P.set.voice = e.target.value; save(); pickVoice(); say('Ace, find candle.'); });
+$('#voiceTest').addEventListener('click', () => say('Nailed it, Ace. Ace, find candle.'));
+let preview = null;
+$('#songPlay').addEventListener('click', () => { audio(); if(preview) preview.stop(); preview = playNotes(SONGS[+$('#songSel').value - 1], 0, 1e9, i => flashBulb(i)); });
+$('#songStop').addEventListener('click', () => { if(preview){ preview.stop(); preview = null; } });
+$('#coachBtn').addEventListener('click', () => { renderCoach(); $('#coach').hidden = false; backupUI(null); });
+$('#coachClose').addEventListener('click', () => { $('#coach').hidden = true; if(preview){ preview.stop(); preview = null; } });
+$('#coach').addEventListener('click', e => { if(e.target.id === 'coach') $('#coachClose').click(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !$('#coach').hidden) $('#coachClose').click(); });
+$('#copyBtn').addEventListener('click', () => {
+  backupUI('report'); const out = $('#out'); out.value = report(); out.hidden = false;
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(out.value).then(() => backupUI('report', 'Report copied.'), () => out.select()); else out.select();
+});
+$('#resetBtn').addEventListener('click', e => {
+  const b = e.currentTarget;
+  if(!b.dataset.arm){ b.dataset.arm = '1'; b.textContent = 'Click again to erase everything'; return; }
+  Object.assign(P, {level:1, unlocked:1, levels:{}, words:{}}); save(); R.token++; stopSong(); clearIdle(); renderCoach(); renderBoard(); show('startScreen');
+});
+
+/* ---------- Backup ----------
+   The whole progress record as one code to keep somewhere safe (an email to yourself works).
+   Restore puts it back, on this computer or another one. Codes only restore into the game that made them. */
+function toCode(o){
+  const b = new TextEncoder().encode(JSON.stringify(o)); let s = '';
+  for(let i = 0; i < b.length; i += 8192) s += String.fromCharCode.apply(null, b.subarray(i, i + 8192));
+  return `ACESGARAGE|${KEY}|${btoa(s)}`;
+}
+function fromCode(code){
+  const m = String(code).replace(/\s+/g, '').match(/^[A-Z]+GARAGE\|([\w-]+)\|([A-Za-z0-9+/=]+)$/);
+  if(!m) return {err:'That is not a backup code. Copy the whole code, starting with ACESGARAGE.'};
+  if(m[1] !== KEY) return {err:'That code is from a different game.'};
+  try{ const o = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(m[2]), c => c.charCodeAt(0)))); if(o && typeof o === 'object' && !Array.isArray(o)) return {data:o}; }catch(e){}
+  return {err:'That code is damaged. Copy it again, all of it.'};
+}
+// mode: null (closed), 'report', 'backup' or 'restore' (the box takes a pasted code)
+function backupUI(mode, msg){
+  const out = $('#out'), m = $('#bkMsg');
+  out.readOnly = mode !== 'restore';
+  out.placeholder = mode === 'restore' ? 'Paste the backup code here, then click Restore this code.' : '';
+  $('#restoreBtn').textContent = mode === 'restore' ? 'Restore this code' : 'Restore from backup';
+  m.textContent = msg || ''; m.hidden = !msg;
+  if(!mode) out.hidden = true;
+}
+$('#backupBtn').addEventListener('click', () => {
+  const out = $('#out'); out.value = toCode(P); out.hidden = false;
+  backupUI('backup', 'Here is the backup code. Copy it and keep it somewhere safe, like an email to yourself.');
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(out.value).then(() => backupUI('backup', 'Backup code copied. Paste it somewhere safe, like an email to yourself.'), () => out.select()); else out.select();
+});
+$('#restoreBtn').addEventListener('click', () => {
+  const out = $('#out');
+  if(out.readOnly){ out.value = ''; out.hidden = false; backupUI('restore', 'This replaces the progress on this computer with the backup.'); out.focus(); return; }
+  const r = fromCode(out.value);
+  if(r.err){ backupUI('restore', r.err); return; }
+  R.token++; stopSong(); clearIdle();
+  const p = merge(r.data); Object.keys(P).forEach(k => delete P[k]); Object.assign(P, p);
+  save(); pickVoice(); renderBoard(); show('startScreen'); renderCoach();
+  out.value = ''; backupUI(null, `Progress restored: levels 1 to ${P.unlocked} open.`);
+});
+
+/* ---------- Start ---------- */
+if(!hasVoice) $('#noSound').hidden = false;
+else setTimeout(() => { if(speechSynthesis.getVoices().length === 0) $('#noSound').hidden = false; }, 2500);
+renderBoard();
+show('startScreen');
+if(window.__TEST__){ window.__R = R; window.__P = P; window.__LEVELS = LEVELS; window.__SONGS = SONGS; window.__photo = photo; window.__CREDITS = CREDITS; }
+})();
+</script>
+
+</body></html>
