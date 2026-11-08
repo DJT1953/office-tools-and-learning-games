@@ -29,8 +29,9 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
-# The modern "Select folder" window, and a helper that makes Word retry when
-# it is busy instead of failing ("call was rejected by callee")
+# The window for choosing a folder (Windows' Open window, which shows the files
+# in each folder, with a "Use this folder" button added), and a helper that
+# makes Word retry when it is busy instead of failing ("call was rejected by callee")
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
@@ -44,7 +45,7 @@ namespace FindReplaceApp
         void SetFileTypes(uint cFileTypes, IntPtr rgFilterSpec);
         void SetFileTypeIndex(uint iFileType);
         void GetFileTypeIndex(out uint piFileType);
-        void Advise(IntPtr pfde, out uint pdwCookie);
+        void Advise(IFileDialogEvents pfde, out uint pdwCookie);
         void Unadvise(uint dwCookie);
         void SetOptions(uint fos);
         void GetOptions(out uint pfos);
@@ -79,21 +80,173 @@ namespace FindReplaceApp
     [ComImport, Guid("DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7")]
     public class FileOpenDialogClass { }
 
+    [ComImport, Guid("973510DB-7D7F-452B-8975-74A85828D354"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IFileDialogEvents
+    {
+        [PreserveSig] int OnFileOk(IFileDialog pfd);
+        [PreserveSig] int OnFolderChanging(IFileDialog pfd, IShellItem psiFolder);
+        [PreserveSig] int OnFolderChange(IFileDialog pfd);
+        [PreserveSig] int OnSelectionChange(IFileDialog pfd);
+        [PreserveSig] int OnShareViolation(IFileDialog pfd, IShellItem psi, out int pResponse);
+        [PreserveSig] int OnTypeChange(IFileDialog pfd);
+        [PreserveSig] int OnOverwrite(IFileDialog pfd, IShellItem psi, out int pResponse);
+    }
+
+    [ComImport, Guid("36116642-D713-4B97-9B83-7484A9D00433"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IFileDialogControlEvents
+    {
+        [PreserveSig] int OnItemSelected(IFileDialogCustomize pfdc, uint dwIDCtl, uint dwIDItem);
+        [PreserveSig] int OnButtonClicked(IFileDialogCustomize pfdc, uint dwIDCtl);
+        [PreserveSig] int OnCheckButtonToggled(IFileDialogCustomize pfdc, uint dwIDCtl, bool bChecked);
+        [PreserveSig] int OnControlActivating(IFileDialogCustomize pfdc, uint dwIDCtl);
+    }
+
+    [ComImport, Guid("e6fdd21a-163f-4975-9c8c-a69f1ba37034"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IFileDialogCustomize
+    {
+        void EnableOpenDropDown(uint dwIDCtl);
+        void AddMenu(uint dwIDCtl, [MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
+        void AddPushButton(uint dwIDCtl, [MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
+        void AddComboBox(uint dwIDCtl);
+        void AddRadioButtonList(uint dwIDCtl);
+        void AddCheckButton(uint dwIDCtl, [MarshalAs(UnmanagedType.LPWStr)] string pszLabel, bool bChecked);
+        void AddEditBox(uint dwIDCtl, [MarshalAs(UnmanagedType.LPWStr)] string pszText);
+        void AddSeparator(uint dwIDCtl);
+        void AddText(uint dwIDCtl, [MarshalAs(UnmanagedType.LPWStr)] string pszText);
+        void SetControlLabel(uint dwIDCtl, [MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
+        void GetControlState(uint dwIDCtl, out uint pdwState);
+        void SetControlState(uint dwIDCtl, uint dwState);
+        void GetEditBoxText(uint dwIDCtl, out IntPtr ppszText);
+        void SetEditBoxText(uint dwIDCtl, [MarshalAs(UnmanagedType.LPWStr)] string pszText);
+        void GetCheckButtonState(uint dwIDCtl, out bool pbChecked);
+        void SetCheckButtonState(uint dwIDCtl, bool bChecked);
+        void AddControlItem(uint dwIDCtl, int dwIDItem, [MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
+        void RemoveControlItem(uint dwIDCtl, int dwIDItem);
+        void RemoveAllControlItems(uint dwIDCtl);
+        void GetControlItemState(uint dwIDCtl, int dwIDItem, out uint pdwState);
+        void SetControlItemState(uint dwIDCtl, int dwIDItem, uint dwState);
+        void GetSelectedControlItem(uint dwIDCtl, out int pdwIDItem);
+        void SetSelectedControlItem(uint dwIDCtl, int dwIDItem);
+        void StartVisualGroup(uint dwIDCtl, [MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
+        void EndVisualGroup();
+        void MakeProminent(uint dwIDCtl);
+        void SetControlItemText(uint dwIDCtl, uint dwIDItem, [MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
+    }
+
+    [ComImport, Guid("00000114-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IOleWindow
+    {
+        void GetWindow(out IntPtr phwnd);
+        void ContextSensitiveHelp(bool fEnterMode);
+    }
+
+    // Listens for the "Use this folder" button, and for Open
+    public class FolderButtonEvents : IFileDialogEvents, IFileDialogControlEvents
+    {
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
+
+        public IFileDialog Dialog;
+        public string Chosen;
+
+        // The full path of a shell item when it is a folder on the computer, or null
+        private static string FolderPath(IShellItem item)
+        {
+            try
+            {
+                string path;
+                item.GetDisplayName(0x80058000, out path);
+                if (!string.IsNullOrEmpty(path) && System.IO.Directory.Exists(path)) return path;
+            }
+            catch { }
+            return null;
+        }
+
+        // A highlighted folder is the one chosen, as in Windows' own folder chooser;
+        // otherwise the folder that is open
+        public int OnButtonClicked(IFileDialogCustomize pfdc, uint dwIDCtl)
+        {
+            string path = null;
+            try { IShellItem selected; Dialog.GetCurrentSelection(out selected); path = FolderPath(selected); } catch { }
+            if (path == null) { try { IShellItem folder; Dialog.GetFolder(out folder); path = FolderPath(folder); } catch { } }
+            if (path != null)
+            {
+                Chosen = path;
+                Dialog.Close(0);
+                return 0;
+            }
+            // Such as "This PC" or a library: not one folder on the computer
+            IntPtr window = IntPtr.Zero;
+            try { ((IOleWindow)Dialog).GetWindow(out window); } catch { }
+            MessageBoxW(window, "This place is not a single folder on the computer. Open the folder that holds your files, then click \"Use this folder\".", "Find and Replace", 0x40);
+            return 0;
+        }
+
+        // When true, a file picked with Open is the answer itself, not its folder
+        public bool KeepFile;
+
+        // A file picked in the folder that is open chooses that folder - even a
+        // shortcut to a file somewhere else. (A typed path is followed as usual.)
+        public int OnFileOk(IFileDialog pfd)
+        {
+            if (KeepFile) return 0;
+            try
+            {
+                string typed;
+                pfd.GetFileName(out typed);
+                if (!string.IsNullOrEmpty(typed) && typed.IndexOfAny(new char[] { '\\', '/', ':' }) < 0)
+                {
+                    IShellItem folder;
+                    pfd.GetFolder(out folder);
+                    string path = FolderPath(folder);
+                    if (path != null) Chosen = path;
+                }
+            }
+            catch { }
+            return 0;
+        }
+        public int OnFolderChanging(IFileDialog pfd, IShellItem psiFolder) { return 0; }
+        public int OnFolderChange(IFileDialog pfd) { return 0; }
+        public int OnSelectionChange(IFileDialog pfd) { return 0; }
+        public int OnShareViolation(IFileDialog pfd, IShellItem psi, out int pResponse) { pResponse = 0; return 0; }
+        public int OnTypeChange(IFileDialog pfd) { return 0; }
+        public int OnOverwrite(IFileDialog pfd, IShellItem psi, out int pResponse) { pResponse = 0; return 0; }
+        public int OnItemSelected(IFileDialogCustomize pfdc, uint dwIDCtl, uint dwIDItem) { return 0; }
+        public int OnCheckButtonToggled(IFileDialogCustomize pfdc, uint dwIDCtl, bool bChecked) { return 0; }
+        public int OnControlActivating(IFileDialogCustomize pfdc, uint dwIDCtl) { return 0; }
+    }
+
     public static class FolderPicker
     {
         [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
         private static extern void SHCreateItemFromParsingName(string path, IntPtr pbc, [MarshalAs(UnmanagedType.LPStruct)] Guid riid, out IShellItem item);
 
-        // Returns the chosen folder, or null if the window was cancelled
+        // Shows the files in each folder while choosing. Returns the folder chosen
+        // with "Use this folder", or the folder of a file chosen with Open, or null
+        // if the window was cancelled.
         public static string Pick(IntPtr owner, string title, string startFolder)
         {
+            return Pick(owner, title, startFolder, false);
+        }
+
+        // keepFile: a file chosen with Open is returned itself, not its folder
+        public static string Pick(IntPtr owner, string title, string startFolder, bool keepFile)
+        {
             IFileDialog dialog = (IFileDialog)new FileOpenDialogClass();
+            FolderButtonEvents events = new FolderButtonEvents();
+            events.KeepFile = keepFile;
+            uint cookie = 0;
             try
             {
                 uint options;
                 dialog.GetOptions(out options);
-                dialog.SetOptions(options | 0x20 | 0x40);   // pick folders, real folders only
+                dialog.SetOptions(options | 0x40 | 0x2000000);   // real folders only; don't add the file picked to Recent files
                 dialog.SetTitle(title);
+                IFileDialogCustomize custom = (IFileDialogCustomize)dialog;
+                custom.AddPushButton(1, "Use this folder");
+                custom.MakeProminent(1);
+                events.Dialog = dialog;
+                dialog.Advise(events, out cookie);
                 if (!string.IsNullOrEmpty(startFolder) && System.IO.Directory.Exists(startFolder))
                 {
                     try
@@ -104,14 +257,20 @@ namespace FindReplaceApp
                     }
                     catch { }
                 }
-                if (dialog.Show(owner) != 0) return null;
+                int shown = dialog.Show(owner);
+                if (events.Chosen != null) return events.Chosen;
+                if (shown != 0) return null;
                 IShellItem result;
                 dialog.GetResult(out result);
                 string path;
-                result.GetDisplayName(0x80058000, out path);   // the folder's full path
-                return path;
+                result.GetDisplayName(0x80058000, out path);   // the chosen file's full path
+                return keepFile ? path : System.IO.Path.GetDirectoryName(path);
             }
-            finally { Marshal.ReleaseComObject(dialog); }
+            finally
+            {
+                if (cookie != 0) { try { dialog.Unadvise(cookie); } catch { } }
+                Marshal.ReleaseComObject(dialog);
+            }
         }
     }
 
@@ -190,14 +349,18 @@ function Show-Message([string]$Text, [string]$Buttons = 'OK', [string]$Icon = 'I
     return [System.Windows.Forms.MessageBox]::Show($Text, 'Find and Replace', $Buttons, $Icon)
 }
 
-function Select-Folder([string]$Start) {
-    $title = 'Choose a folder of documents to add'
-    try { return [FindReplaceApp.FolderPicker]::Pick([IntPtr]::Zero, $title, $Start) }
+# Returns the folder chosen, or a document picked with Open (it is added on its
+# own), or $null. $Owner: the window that waits while this one is open.
+function Select-Folder([string]$Start, $Owner) {
+    $title = 'Open a folder of documents to add, then click "Use this folder"'
+    $ownerHandle = [IntPtr]::Zero
+    if ($Owner) { $ownerHandle = $Owner.Handle }
+    try { return [FindReplaceApp.FolderPicker]::Pick($ownerHandle, $title, $Start, $true) }
     catch {
         $d = New-Object System.Windows.Forms.FolderBrowserDialog
         $d.Description = $title
         if ($Start -and (Test-Path -LiteralPath $Start)) { $d.SelectedPath = $Start }
-        if ($d.ShowDialog() -eq 'OK') { return $d.SelectedPath }
+        if ($d.ShowDialog($Owner) -eq 'OK') { return $d.SelectedPath }
         return $null
     }
 }
@@ -978,7 +1141,7 @@ function Show-MainForm([hashtable]$Last, [string[]]$StartPaths) {
         & $afterAdd (Add-DocPaths $list $d.FileNames)
     })
     $folderBtn.Add_Click({
-        $f = Select-Folder $Last.LastFolder
+        $f = Select-Folder $Last.LastFolder $form
         if ($f) { & $afterAdd (Add-DocPaths $list @($f)) }
     })
     $list.Add_DragEnter({

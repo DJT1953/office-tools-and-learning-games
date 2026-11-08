@@ -30,7 +30,9 @@ START IT
 1. ADD THE DOCUMENTS
    - "Add documents..." picks one or more documents.
    - "Add a folder..." adds every .rtf, .doc, .docx and .txt document in a
-     folder (not the ones in folders inside it).
+     folder (not the ones in folders inside it). Its window shows the files
+     in each folder: open the folder, then click "Use this folder".
+     (Clicking one document there and then Open adds just that document.)
    - Or drag documents or folders into the list.
    "Remove from the list" and "Clear the list" take them out of the list
    (the files themselves are not touched).

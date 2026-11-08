@@ -97,7 +97,7 @@ function New-Shortcut([string]$Path) {
     $lnk.WorkingDirectory = $AppDir
     $lnk.IconLocation = "$IconPath,0"
     $lnk.WindowStyle = 7   # start minimized, so no black PowerShell box flashes up
-    $lnk.Description = 'Give the .rtf, .doc, .docx and .txt files in a folder new names made from their first words'
+    $lnk.Description = 'Give the files in a folder new names: from their first words, with text, numbers or dates added'
     $lnk.Save()
 }
 

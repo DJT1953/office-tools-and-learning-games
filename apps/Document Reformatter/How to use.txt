@@ -6,9 +6,14 @@ START IT
   (The same shortcut is also in this folder.)
 
 1. CHOOSE A FOLDER
-   A window opens. Pick the folder that holds your .rtf, .doc, .docx and
-   .txt files and click "Select Folder". Only files directly in that folder
-   are used, not files in folders inside it.
+   A window like Word's Open window shows your folders and the files in
+   them. Open the folder that holds your .rtf, .doc, .docx and .txt files,
+   then click "Use this folder" (next to Open). Other ways that work:
+   click a folder once to highlight it, then "Use this folder"; or click
+   any file in the folder, then Open.
+   Only files directly in that folder are used, not files in folders
+   inside it. "Change folder..." opens the same window; Cancel takes you
+   back to the folder you were on.
 
 2. CHOOSE THE SETTINGS (they apply to every file in the folder)
    Left side:

@@ -2,29 +2,75 @@
 ================================
 
 WHAT IT DOES
-  It gives the .rtf, .doc, .docx and .txt files in a folder new names,
-  made from the first 30 characters of the text inside each one.
-  For example, a letter called "Document1.docx" that starts
-  "Dear Mrs Patel, Thank you for your letter..." becomes
-  "Dear Mrs Patel, Thank you for.docx".
+  It gives the files in a folder new names. A name can be made from:
+  - the first characters of the text inside a document (the original
+    way: a letter called "Document1.docx" that starts "Dear Mrs Patel,
+    Thank you for your letter..." becomes "Dear Mrs Patel, Thank you
+    for.docx"),
+  - the name the file has now, or
+  - text you type, the same for every file.
+  Then you can replace words in it, remove characters, change capital
+  letters, and add text, numbers, dates, the author, the title or the
+  folder name before or after it.
 
 START IT
   Double-click "Document Renamer" on your Desktop.
   (The same shortcut is also in this folder.)
 
 1. CHOOSE A FOLDER
-   Pick the folder that holds your documents and click "Select Folder".
+   A window like Word's Open window shows your folders and the files in
+   them. Open the folder that holds your files, then click "Use this
+   folder" (next to Open). Other ways that work:
+   - click a folder once to highlight it, then "Use this folder";
+   - click any file in the folder, then Open.
    Only files directly in that folder are used, not files in folders
-   inside it. A small window shows each file being read.
+   inside it. When the names are made from the documents' text, a small
+   window shows each document being read.
+   "Change folder..." in the main window opens the same window. Cancel
+   takes you back to the folder you were on, with your choices kept.
 
-2. CHECK THE NEW NAMES
-   A list shows each file's name now and its new name. Nothing has
-   changed yet. The Note column says when something is different, for
-   example when a file keeps its name because it has no words in it.
-   - "the first 30 characters": change the number for longer or shorter
-     names. The list changes as you type. The app remembers the number.
+2. CHOOSE WHICH FILES
+   At the top of the window:
+   - Word and text documents (.rtf, .doc, .docx, .txt), or
+   - All files: photos, spreadsheets, PDFs and anything else as well.
 
-3. CHOOSE WHAT TO DO
+3. CHOOSE HOW THE NEW NAMES ARE MADE
+   The list below changes as you choose, so you can see every new name
+   before anything happens. The app remembers your choices for next time.
+
+   1. Start with
+      - The name it has now.
+      - The first [30] characters of its text: pick a number from 1 to 30
+        in the box. Only Word and text documents have text to use; other
+        files keep their name.
+      - This text: type a name for every file. Tick "Number them" (see
+        below) so each file gets its own number, or files after the first
+        get " (2)", " (3)" and so on.
+   2. Change it (these change the name from step 1, in this order)
+      - Replace ... with ...: every place the words appear. Leave "with"
+        empty to take the words out. Capital letters don't matter unless
+        you tick "Only where the capital letters match".
+      - Remove the first / the last ... characters.
+      - Capital letters: all small letters, ALL CAPITALS, Capital At The
+        Start Of Each Word, or Capital first letter only.
+   3. Add to it (these are added exactly as you type or pick them)
+      - Before the name / After the name: any text, such as "Invoice".
+      - Information: date created, date modified, today's date, date
+        taken (photos and videos), author or title (Word documents), or
+        the folder name, at the start or at the end.
+        "Dates look like" picks how dates are written.
+      - Number them: at the start or at the end, starting at any number,
+        with 1 to 6 digits (001, 002, 003...), going up by any step, in
+        order of name, date created or date modified.
+      - Between the parts: what goes between the added parts and the name:
+        " - ", a space, "_", "-" or nothing.
+   The parts go in this order:
+      before-text, number, information, NAME, information, number, after-text
+   (each only where you chose it). For example, "Trip" before, numbers at
+   the start and date taken at the end make "Trip - 001 - IMG_0009 -
+   2026-07-03.jpg".
+
+4. CHOOSE WHAT TO DO
    - Save renamed copies in a folder called "renamed" (the choice that
      is ticked when the window opens). Your files stay exactly as they
      are, and renamed copies go into a "renamed" folder inside your folder.
@@ -33,7 +79,7 @@ START IT
      names back afterwards (see below).
    Then click "Save renamed copies" or "Rename the files".
 
-4. READ THE SUMMARY
+5. READ THE SUMMARY
    It lists what was renamed, what kept its name, and anything that could
    not be done, and why. "Open the folder" shows the files.
 
@@ -44,35 +90,50 @@ PUTTING THE OLD NAMES BACK
   the window. Each time undoes one renaming, starting with the latest.
   (Renamed copies don't need this: your original files were never changed.)
 
-HOW THE NEW NAME IS MADE
+HOW NAMES MADE FROM A DOCUMENT'S TEXT WORK
   - Empty lines and spaces at the start of the document are skipped.
   - Line breaks, tabs and table cells become a single space.
-  - Windows does not allow some characters in file names, so:
-      / \ |      become  -
-      "          becomes  '
-      :          becomes  " - "  (or "-" between numbers, as in 10-30)
-      < > * ?    are left out
-  - A name never ends with a space, a period or a dash.
-  - The file type stays the same: .docx stays .docx, .txt stays .txt.
-  - If two documents start the same way, the second one gets " (2)" at
-    the end, the third " (3)", and so on.
   - Only the main text counts: not headers, footers, page numbers or
     text boxes. Hidden text is skipped. With tracked changes, the text
     is read as if the changes were accepted.
 
+WHAT EVERY NEW NAME FOLLOWS
+  - Windows does not allow some characters in file names, so in text from
+    a document and in text you type:
+      / \ |      become  -
+      "          becomes  '
+      :          becomes  " - "  (or "-" between numbers, as in 10-30)
+      < > * ?    are left out
+  - A name never ends with a space or a period.
+  - The file type stays the same: .docx stays .docx, .jpg stays .jpg.
+  - If two files would get the same name, the second one gets " (2)" at
+    the end, the third " (3)", and so on.
+  - When renaming the files themselves, files being renamed can trade
+    names, so renumbering "Trip 1, 2, 3" to start at 2 gives "Trip 2, 3, 4".
+    A new name never takes the name of a file that keeps its own; " (2)"
+    is added instead. If a file can't be renamed (for example because it
+    is open in Word), any file that would take its name keeps its own too.
+  - Names are kept to 200 characters, so the whole path stays within what
+    Windows allows. The Note column says when a name was shortened.
+
 GOOD TO KNOW
   - Microsoft Word reads the .rtf, .doc and .docx files in the background
-    (you won't see it). If Word can't open a file, LibreOffice tries
-    instead. Word never changes or saves your files.
-    .txt files are read directly, and special letters such as e-acute and
-    the pound sign come through correctly.
+    (you won't see it), only when names are made from their text. If Word
+    can't open a file, LibreOffice tries instead. Word never changes or
+    saves your files. .txt files are read directly, and special letters
+    such as e-acute and the pound sign come through correctly.
+  - Author, title and date taken are the same details File Explorer
+    shows for a file. A file without one gets no information added, and
+    the Note column says so.
+  - "Date created" is when the file arrived on this computer: a file that
+    was copied or downloaded gets the date of the copy, not the date it
+    was first written. "Date modified" is when it was last saved.
   - A file that is open in Word can't be renamed. Close it and try again.
-  - Password-protected files can't be read, so they keep their name.
+  - Password-protected documents can't be read, so names made from their
+    text can't be made. Other choices still work for them.
   - Files whose names start with ~$ are Word's temporary files and are skipped.
   - Running it again with "Save renamed copies" replaces copies in
     "renamed" that have the same name. Other copies there stay.
-  - When renaming the files themselves, a new name never takes the name of
-    another file in the folder; " (2)" is added instead.
 
 IF THE DESKTOP SHORTCUT GOES MISSING (or you move this folder)
   Double-click "Create desktop shortcut" in this folder.
@@ -86,5 +147,7 @@ TRY IT SAFELY
 
 FILES IN THIS FOLDER
   Document Renamer.ps1  - the window
-  RenameEngine.ps1      - the part that reads and renames the files
+  RenameEngine.ps1      - the part that reads the files and renames them
   Create shortcuts.ps1  - makes the shortcuts and the icon
+  Test Renamer.ps1      - checks the naming choices on test files it makes
+                          itself (for whoever changes the app)
