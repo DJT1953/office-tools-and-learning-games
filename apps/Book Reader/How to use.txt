@@ -1,0 +1,132 @@
+BOOK READER - HOW TO USE
+
+Start it by double-clicking Run_BookReader.bat. You can also drag book files
+onto Run_BookReader.bat, or onto the open window, to open them.
+
+It reads EPUB, Kindle (MOBI, AZW, AZW3, PRC), PDF, plain text (TXT) and saved
+web pages (HTM, HTML, MHT). It can't open locked books (see the end).
+
+
+THE LIBRARY
+
+The first time, it looks through Documents\My Kindle Content. This can take a
+minute; the line at the bottom counts the books as it goes.
+
+- Click a book's cover to pick it. A row of buttons appears at the bottom:
+  Open, Favorite, Finished, Collections, Save a copy, Show in folder and
+  Remove from library. Double-clicking a cover opens the book too.
+- Continue reading opens the book you read last, where you left off.
+- Add books adds single book files. Add folder adds a whole folder of books.
+- Type in the box at the top to find a book by its title or author.
+- Order: changes the order of the covers (Most recent, Title, Author,
+  Date added).
+- All, Reading, Not started, Finished, Favorites and Locked show only those
+  books. Collections shows one of your own collections.
+- To make a collection, pick a book, press Collections, then
+  New collection... and type its name.
+- Remove from library only takes the book off the list. The file itself stays
+  where it is.
+
+
+READING
+
+- Next page and Previous page are under the page. You can also click the left
+  or right edge of the page, use the arrow keys or Page Up / Page Down, or turn
+  the mouse wheel.
+- The line under the page says the chapter, the page, how much of the book you
+  have read, and about how long the chapter will take. Drag the slider to jump
+  anywhere in the book.
+- The book always reopens where you stopped.
+- If part of a book can't be shown, it says so and goes back to the library.
+
+Buttons at the top:
+- Library: back to all your books.
+- Contents: the list of chapters. Click one to go there.
+- Search: type words and press Find. Click a result to go there; the words
+  are marked in orange.
+- Bookmark: marks the page. Press it again (Remove bookmark) to take the
+  mark off.
+- Notes: your bookmarks and highlights, with your notes. Click one to go
+  there. Save notes to a file writes them into a text file.
+- Text: text size (Smaller / Bigger), font, colours (White, Sepia, Night),
+  One page, Two pages side by side, or Scroll, Space between lines (Close,
+  Normal, Wide), Margins, and Straight right-hand edge.
+- Read aloud: reads the book out loud with a Windows voice and turns the pages
+  by itself. While it reads, a bar has Pause (then Go on), Stop, Slower,
+  Faster and Voice. Press Read aloud (now called Stop reading) again to stop.
+- Full screen: the page fills the screen. Press Exit full screen or the Esc
+  key to come back.
+- Save a copy: saves the book as EPUB, PDF, Word or plain text.
+
+Picking words: hold the left mouse button down and drag across some words. A
+bar appears with Yellow, Green, Blue and Pink (to highlight them in that
+colour), Add note, Copy, Look up, Read aloud from here, and Cancel.
+- Look up asks a free dictionary on the internet what the word means. Only the
+  first word you picked is sent. Look it up on the web opens Wiktionary in your
+  web browser.
+- Click a highlight to change its colour, or press Edit note or Remove.
+
+Links in a book: footnote and chapter links go there, and a Back button
+appears under the page to take you back. A link to a web page asks before
+opening your web browser. Click a picture to see it bigger.
+
+Keys: Ctrl+F searches, Ctrl+B bookmarks, F11 full screen, Esc closes a bar or
+leaves full screen.
+
+
+PDFs
+
+PDF pages are fixed, so their words can't be made bigger or recoloured, and
+words can't be highlighted. Instead there are buttons under the page: Zoom out,
+Zoom in, Fit width, Whole page and Continuous pages. Bookmarks, Contents (when
+the PDF has them), Search and Read aloud work. A PDF that needs a password asks
+for it.
+
+
+LOCKED BOOKS
+
+Many books bought from Amazon are locked with copy protection. They show a
+padlock on the cover and "Locked by Amazon" and open only in Amazon's Kindle app or at read.amazon.com.
+Books locked by Samsung Books open only in the Samsung Books app; when they
+are free Project Gutenberg books, Open offers the page where you can download
+a free, unlocked copy. The Book Reader never removes copy protection.
+
+
+WHAT IT NEEDS
+  1. Windows 10 or 11.
+
+  2. Python 3.10 or newer (tested with Python 3.14). It is free:
+       https://www.python.org/downloads/windows/
+     The Book Reader starts with Python's "pyw" command, which the python.org
+     installer sets up.
+
+  3. Free add-ons. The first time the Book Reader starts, it lists any that
+     are missing and offers to download and install them for you (about
+     200 MB, less if the Music Player, Video Player or Video Editor is
+     already set up). This needs an internet connection once.
+       PySide6 - shows the books, the PDFs and the window, and reads aloud
+         https://pypi.org/project/PySide6/
+       lxml - reads EPUB books
+         https://pypi.org/project/lxml/
+       comtypes - lets Microsoft Word save copies as Word documents
+         https://pypi.org/project/comtypes/
+     To install them yourself instead, open Command Prompt and type:
+       py -m pip install "pyside6>=6.10" lxml comtypes
+
+  4. For Look up: an internet connection. Meanings come from the free
+     dictionary at:
+       https://dictionaryapi.dev/
+     Look it up on the web opens Wiktionary:
+       https://en.wiktionary.org/
+
+  5. For Save a copy as Word (only if you want it): Microsoft Word.
+       https://www.microsoft.com/microsoft-365/word
+
+  6. For Read aloud: the voices that come with Windows. More can be added in
+     Windows Settings, under Time & language, then Speech.
+
+GOOD TO KNOW
+  - Your places, bookmarks, highlights and settings are kept in the folder
+    %APPDATA%\Book Reader.
+  - Your book files are never changed, moved or deleted. Remove from library
+    only takes a book off the list.
