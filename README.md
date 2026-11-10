@@ -21,7 +21,7 @@ The games speak out loud and run in a web browser, with nothing to install. Turn
 
 [Download all six games](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/learning-games.zip) to play without an internet connection. The fonts need internet, and plain fonts are used without it.
 
-Carol Match's photos come from Wikimedia Commons and keep their own licences (public domain, CC0, CC BY and CC BY-SA), listed in the game's Photo credits and in [the photo credits](docs/games/carol-match-photos/CREDITS.md).
+Carol Match's photos come from Wikimedia Commons and keep their own licenses (public domain, CC0, CC BY and CC BY-SA), listed in the game's Photo credits and in [the photo credits](docs/games/carol-match-photos/CREDITS.md).
 
 ## Windows tools
 
@@ -39,8 +39,11 @@ Unzip any tool below, then start it as shown. Your originals are left alone unle
 | Photos text to Word | Turns photos of text into Word files, keeping the layout | Python 3, Tesseract OCR | `Run_PhotoText.bat` | [Zip](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/photos-to-word.zip) |
 | Video Player | Plays MP4, MKV, AVI, MOV, WMV and other common videos with sound, and saves any frame as a PNG picture | Python 3; downloads a 150 MB add-on the first time | `Run_VideoPlayer.bat` | [Zip](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/video-player.zip) |
 | Video Editor | Trims, splits, inserts and splices videos and sound files, with volume, fades and added music or narration, then saves in the format and folder you choose | Python 3; downloads about 190 MB the first time (40 MB with the Video Player); see the memory warning below | `Run_VideoEditor.bat` | [Zip](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/video-editor.zip) |
+| Music Player | Plays the music on this PC, internet radio with pause and rewind, and Spotify, with big buttons and a sleep timer | Python 3.10 or newer; downloads about 190 MB of add-ons the first time; the Spotify app for Spotify; see Music Player needs below | `Run_MusicPlayer.bat` | [Zip](https://github.com/DJT1953/office-tools-and-learning-games/releases/latest/download/music-player.zip) |
 
 **Video Editor memory warning:** saving long 4K edits needs a lot of memory, about 5 GB for 20 pieces of 4K video (HD needs far less). On a PC with 8 GB or less, keep 4K edits short or save them in parts.
+
+**Music Player needs:** Windows 10 or 11 and [Python 3.10 or newer](https://www.python.org/downloads/windows/) (tested with 3.14). The first time it starts, it offers to download and install its free add-ons, about 190 MB (less if the Video Player or Video Editor is already set up): [PySide6](https://pypi.org/project/PySide6/), [Mutagen](https://pypi.org/project/mutagen/), [imageio-ffmpeg](https://pypi.org/project/imageio-ffmpeg/), [winrt-Windows.Media.Control](https://pypi.org/project/winrt-Windows.Media.Control/), [winrt-Windows.Media](https://pypi.org/project/winrt-Windows.Media/) and [pycaw](https://pypi.org/project/pycaw/). Radio needs an internet connection; the stations come from [Radio Browser](https://www.radio-browser.info/). Spotify is optional and needs the Spotify app ([Microsoft Store](https://apps.microsoft.com/detail/9ncbcszsjrsb) or [spotify.com](https://www.spotify.com/download/windows/)) and a free or Premium Spotify account. The zip's `How to use.txt` has the same list.
 
 Get Python 3 from [python.org](https://www.python.org/downloads/). Then the tools install any free add-ons they need the first time they run, which takes an internet connection.
 

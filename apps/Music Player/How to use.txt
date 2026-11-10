@@ -1,0 +1,72 @@
+MUSIC PLAYER - how to use it
+============================
+
+WHAT IT DOES
+  Plays the music on this computer, internet radio, and Spotify, with big
+  buttons and big words.
+  - MY MUSIC: open a folder and every song in it and its subfolders plays.
+    Your last 4 folders stay as buttons. Search the list, sort it, shuffle,
+    repeat, change the speed, and save or open playlists. The list and the
+    place in the song are remembered for next time.
+  - RADIO: search about 50,000 free stations by name, type of music or
+    country. The last hour of a station is kept, so live radio can be paused,
+    sent back, taken back to the start of a song, or a marked part repeated.
+  - SPOTIFY: open the Spotify app from the player (or a saved playlist link);
+    the player's buttons, volume and Mute then work Spotify.
+  - SLEEP TIMER: stops the music after a while or at the end of the song,
+    and can then close the player, put the computer to sleep, or shut it
+    down, after a 30-second warning you can cancel.
+
+START IT
+  Double-click Run_MusicPlayer.bat. Songs, folders or playlists dragged onto
+  it play in it. For a desktop shortcut: right-click Run_MusicPlayer.bat,
+  then Show more options, Send to, Desktop (create shortcut).
+  Help > Keys and tips in the player lists the keyboard keys.
+
+WHAT IT NEEDS
+  1. Windows 10 or 11.
+
+  2. Python 3.10 or newer (tested with Python 3.14). It is free:
+       https://www.python.org/downloads/windows/
+     The player starts with Python's "pyw" command, which the python.org
+     installer sets up.
+
+  3. Free add-ons. The first time the player starts, it lists any that are
+     missing and offers to download and install them for you (about 190 MB,
+     less if the Video Player or Video Editor is already set up). This needs
+     an internet connection once.
+       PySide6 - plays the music and draws the window
+         https://pypi.org/project/PySide6/
+       Mutagen - reads song names, artists and cover pictures
+         https://pypi.org/project/mutagen/
+       imageio-ffmpeg (FFmpeg) - brings in radio stations
+         https://pypi.org/project/imageio-ffmpeg/
+       winrt-Windows.Media.Control and winrt-Windows.Media - work Spotify's
+       buttons and show its song
+         https://pypi.org/project/winrt-Windows.Media.Control/
+         https://pypi.org/project/winrt-Windows.Media/
+       pycaw - sets Spotify's volume
+         https://pypi.org/project/pycaw/
+     To install them yourself instead, open Command Prompt and type:
+       py -m pip install "pyside6>=6.10" mutagen imageio-ffmpeg winrt-Windows.Media.Control winrt-Windows.Media pycaw
+
+  4. For radio: an internet connection. The station list comes from Radio
+     Browser, a free list kept by volunteers:
+       https://www.radio-browser.info/
+
+  5. For Spotify (only if you want it): the Spotify app for Windows and a
+     Spotify account, free or Premium:
+       https://apps.microsoft.com/detail/9ncbcszsjrsb  (Microsoft Store)
+       https://www.spotify.com/download/windows/
+     Spotify's buttons, song name and volume start working once Spotify has
+     played something since it was opened.
+
+GOOD TO KNOW
+  - Your settings, your last list and the song details it has read are kept
+    in the folder %APPDATA%\Music Player.
+  - Sleep timer: on computers with no ordinary sleep (many newer laptops),
+    "Put the computer to sleep" hibernates instead. The player says so. The
+    computer turns off with everything kept, and the power button brings it
+    back as it was.
+  - Your music files are never changed, moved or deleted. Remove from list
+    and Clear the list only take songs off the player's list.
