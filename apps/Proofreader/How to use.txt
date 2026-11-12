@@ -1,0 +1,143 @@
+PROOFREADER - HOW TO USE
+========================
+
+What it does
+------------
+Goes through Word (.doc, .docx), .rtf and .txt documents and fixes spelling,
+grammar, punctuation, spacing and capital letters. It never changes your
+originals: corrected copies go into a folder called "corrected" beside them.
+
+One press of Start does it all. Each document is run automatically through
+two checking programs, one after the other, in a single go:
+  1. the free checker (LanguageTool), then
+  2. Microsoft Word's own checker.
+You do not start them separately or open either program yourself.
+
+The app also works on a computer without Microsoft Word. It checks for Word
+when it starts; if Word is not there, step 2 is skipped and the free checker
+does the work alone. (Details under "On a computer without Microsoft Word".)
+
+Swear words are never changed, flagged or softened.
+
+
+Installing it (once)
+--------------------
+Double-click "Install_Proofreader.bat". It installs everything the
+Proofreader needs except Microsoft Word, and asks before installing Python:
+
+  - Python, only if the computer does not have it   https://www.python.org/
+  - the Python add-ons PySide6, comtypes and python-docx
+  - the free checker LanguageTool                   https://languagetool.org/
+    with its own copy of Java (Eclipse Temurin)     https://adoptium.net/
+    together about 300 MB to download
+  - a "Proofreader" shortcut on the Desktop
+
+It needs the internet and takes a few minutes. Running it again is safe.
+Microsoft Word is optional and is not installed.
+
+Needs Windows 10 or 11.
+
+
+Starting it
+-----------
+Double-click the "Proofreader" shortcut on the Desktop, or
+"Run_Proofreader.bat". You can also drag documents or folders onto either.
+
+If you skipped the installer, the first press of Start asks to download the
+free checker (about 300 MB). Either way this happens once. After that no
+internet is needed and nothing you write leaves this computer.
+
+
+Using it
+--------
+1. Add documents:  "Add files...", "Add a folder...", or drag them in.
+   A folder means the documents directly in it. Tick "Include the folders
+   inside any folder I add" to go deeper.
+2. Tick what to fix.
+3. Press "Start proofreading". "Stop" finishes the document in hand and stops.
+4. Read the report in the lower half of the window. It is also saved in the
+   "corrected" folder as "Proofreading report <date and time>.txt".
+
+
+How it decides
+--------------
+The free checker goes first, then Microsoft Word's checker.
+
+- A fix is made only when it is clear: one sensible answer, or both checkers
+  agree on the same one.
+- Anything doubtful is NOT changed. It is listed in the report under
+  "LEFT FOR YOU TO DECIDE", with the likely choices.
+- Names (capitalized words in the middle of a sentence), words in ALL CAPITALS
+  and words with numbers in them are left alone.
+- Short labels, such as table cells and list items, are not given a capital.
+
+A document with nothing to correct gets no copy.
+An earlier corrected copy is never written over; the new one is named
+"name (2)", "name (3)" and so on.
+
+
+Run-on sentences
+----------------
+Rewriting a run-on properly takes judgment a rule-based checker does not have.
+So the app:
+- fixes the clear case: two sentences joined with ", however" (also therefore,
+  moreover, otherwise and similar words) get a semicolon;
+- adds commas the checker is sure about;
+- LISTS the rest in the report: very long sentences (over 45 words), sentences
+  that look like two joined by a comma, and very long paragraphs.
+
+
+The other tick boxes
+--------------------
+"Have Microsoft Word check after the free checker"
+    Word settles spellings the free checker is unsure of, and the sentences
+    Word's grammar check questions are listed in the report. Word does not
+    offer its grammar fixes to other programs, so those are listed only.
+
+"Also save a copy that shows each change"
+    Adds "<name> - changes shown.docx" to the corrected folder. Open it in
+    Word and use Review > Accept or Reject to go through the changes one by
+    one. (Word documents only, not .txt.)
+
+"Words to leave alone..."
+    Names and special terms that must never be changed. One per line.
+
+
+On a computer without Microsoft Word
+------------------------------------
+The app looks for Word when it starts. If Word is not there:
+- Word's check is skipped, and the two tick boxes that need Word are greyed
+  out, with a note saying so. The report says so too.
+- .docx and .txt documents are still corrected, by the free checker alone.
+  Expect a few more items under "LEFT FOR YOU TO DECIDE", since Word is not
+  there to settle doubtful spellings.
+- .doc and .rtf documents cannot be opened without Word. They are listed in
+  the report as not corrected. Saved as .docx, they can be.
+- In .docx files, footnotes and endnotes are not checked without Word.
+
+
+Good to know
+------------
+- Fonts, bold, tables, headers, footers and footnotes keep their look. Only
+  the words change.
+- A document with tracked changes still waiting is skipped; accept or reject
+  them in Word first. Protected and read-only documents are skipped too.
+- The checkers do not catch everything. A wrong word that is spelled right
+  ("are office" for "our office") can slip through. Skim the result.
+- English (United States) only.
+
+
+Files
+-----
+Install_Proofreader.bat  one-time setup
+proofreader_setup.py     what the setup runs
+Run_Proofreader.bat      starts the app
+proofreader.py           the window
+proofreader_engine.py    the rules for what to change and what to list
+proofreader_tools.py     downloads and runs the free checker
+proofreader_word.py      the Microsoft Word part
+proofreader_docx.py      corrects .docx files when there is no Word
+proofreader_job.py       copies, batches and the report
+
+The free checker is stored in  %LOCALAPPDATA%\Proofreader\tools
+Settings are stored in         %APPDATA%\Proofreader\settings.json
