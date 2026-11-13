@@ -17,6 +17,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import tempfile
 import threading
 import time
@@ -249,6 +250,91 @@ def update_speed(state: BookState, chars: int, seconds: float) -> None:
     state.chars_per_minute = 0.8 * state.chars_per_minute + 0.2 * speed
 
 
+# ---------------------------------------------------------------- deleting books and duplicates
+
+# Files Kindle and Calibre keep beside a book: by how their names end, or whole names.
+HELPER_ENDINGS = (".mbp", ".mbp1", ".mbpv2", ".mbs", ".phl", ".apnx", ".tan", ".pobi", ".asc", ".ea",
+                  ".voucher", ".original_epub", ".cover", ".azw.md", ".azw.res", ".azw3.md", ".azw3.res")
+HELPER_NAMES = {"metadata.opf", "cover.jpg", "cover.jpeg", "cover.png"}
+
+
+def is_helper(name: str) -> bool:
+    low = name.lower()
+    return low in HELPER_NAMES or low.endswith(HELPER_ENDINGS) or low.startswith("cr!")
+
+
+def _is_book_name(name: str) -> bool:
+    return os.path.splitext(name)[1].lower() in READABLE
+
+
+def trash_plan(path: str, roots: list[str]) -> list[str]:
+    """What deleting this book moves to the Recycle Bin, book first ([] when it is already gone).
+    Its own folder when that folder is inside a library folder (never one itself) and holds
+    nothing but this book and its helper files: Kindle's and Calibre's, or ones sharing its name.
+    Otherwise the book file and the helper files sharing its name; a folder with anything else in
+    it (a photo, a document, another book, a folder) is never touched."""
+    path = os.path.abspath(path)
+    if not os.path.isfile(path):
+        return []
+    folder, name = os.path.split(path)
+    stem = os.path.splitext(name)[0].lower()
+    try:
+        others = [n for n in os.listdir(folder) if n != name]
+    except OSError:
+        return [path]
+    other_books = [n for n in others if _is_book_name(n)]
+    subfolders = any(os.path.isdir(os.path.join(folder, n)) for n in others)
+    key = os.path.normcase(folder)
+    in_library = any(key.startswith(os.path.normcase(os.path.join(os.path.abspath(r), ""))) for r in roots) \
+        and not any(key == os.path.normcase(os.path.abspath(r)) for r in roots)
+    if in_library and not subfolders and not other_books and \
+            all(is_helper(n) or n.lower().startswith(stem + ".") for n in others):
+        return [folder]
+    if any(os.path.splitext(n)[0].lower() == stem for n in other_books):
+        return [path]                    # Book.epub beside Book.mobi: whose helper files are they?
+    helpers = sorted(n for n in others if n.lower().startswith(stem + ".") and not _is_book_name(n)
+                     and os.path.isfile(os.path.join(folder, n)))
+    return [path] + [os.path.join(folder, n) for n in helpers]
+
+
+def _match_key(entry: "LibraryEntry") -> tuple[str, str]:
+    def plain(text: str) -> str:
+        return re.sub(r"[\W_]+", " ", text.casefold()).strip()
+    return plain(entry.info.title), plain((entry.info.authors or [""])[0])
+
+
+def duplicate_groups(entries: list["LibraryEntry"]) -> list[list["LibraryEntry"]]:
+    """Books with the same title and author, most often one book as EPUB and as Kindle, in
+    groups of two or more, in title order."""
+    groups: dict[tuple[str, str], list[LibraryEntry]] = {}
+    for entry in entries:
+        key = _match_key(entry)
+        if key[0]:
+            groups.setdefault(key, []).append(entry)
+    return [group for _key, group in sorted(groups.items()) if len(group) > 1]
+
+
+FORMAT_RANK = {"EPUB": 0, "PDF": 2, "Text": 3, "Web page": 4}       # Kindle is 1; anything else 5
+
+
+def keep_order(entry: "LibraryEntry", state: "BookState") -> tuple:
+    """Which copy of a book is best kept, best first: one that opens before a locked or damaged
+    one; EPUB, then Kindle, PDF and text; the one being read; the biggest file (a smaller copy of
+    the same kind is often cut short)."""
+    fmt = FORMAT_RANK.get(entry.info.format, 1 if entry.info.format == "Kindle" else 5)
+    return (bool(entry.info.lock or entry.info.error), fmt, -(state.opened or 0.0), -entry.size)
+
+
+def duplicate_extras(groups: list[list["LibraryEntry"]],
+                     state_of: Callable[[str], "BookState"]) -> list["LibraryEntry"]:
+    """In each group, every copy but the one best kept (see keep_order): mostly the Kindle copies."""
+    extras = []
+    for group in groups:
+        ranked = sorted(group, key=lambda e: keep_order(e, state_of(e.id)))
+        extras.extend(ranked[1:])
+    return extras
+
+
 # ---------------------------------------------------------------- library
 
 @dataclass
@@ -458,6 +544,30 @@ class Library:
                                       for r in self._cache.values())]
             self._entries = [e for e in self._entries if e.id != ident]
             self._save_library()
+
+    def delete_books(self, idents: list[str], trash: Callable[[str], bool]) -> tuple[list[str], list[str]]:
+        """Move these books to the Recycle Bin with trash(path), True when it was moved: every
+        identical copy, as trash_plan says. Books now gone come off the list. Returns the ids
+        gone and the titles of books that couldn't all be moved (a file in use, say)."""
+        wanted = set(idents)
+        with self._lock:
+            rows = [dict(r) for r in self._cache.values() if r["id"] in wanted]
+            roots = list(self.settings.folders)
+        for row in rows:
+            plan = trash_plan(row["path"], roots)
+            if plan and trash(plan[0]):          # the book (or its folder) first; helpers only after it
+                for extra in plan[1:]:
+                    if os.path.exists(extra):
+                        trash(extra)
+        with self._lock:
+            for key in [k for k, r in self._cache.items() if r["id"] in wanted and not os.path.exists(r["path"])]:
+                del self._cache[key]
+            self._extra = [p for p in self._extra if os.path.exists(p)]
+            left = {r["id"] for r in self._cache.values()}
+            self._entries = self._entries_from_cache()
+            self._save_library()
+        titles = {r["id"]: r.get("title") or os.path.basename(r["path"]) for r in rows}
+        return sorted(i for i in wanted if i not in left), sorted({titles[i] for i in wanted & left if i in titles})
 
     def entry_for_path(self, path: str) -> LibraryEntry | None:
         key = os.path.normcase(os.path.abspath(path))

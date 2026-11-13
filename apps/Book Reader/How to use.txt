@@ -35,7 +35,29 @@ after an update that reads genres, it looks at every book once more.
 - To make a collection, pick a book, press Collections, then
   New collection... and type its name.
 - Remove from library only takes the book off the list. The file itself stays
-  where it is.
+  where it is. To delete books from the computer, see below.
+
+
+PICKING AND DELETING BOOKS
+
+Press Pick books to tick several covers at once. Every cover gets a tick box;
+click a cover to tick it, and click it again to take the tick off. While
+picking, a click never opens a book. A bar appears at the bottom:
+
+- Pick all shown ticks every cover on the screen. For example, press Locked,
+  then Pick all shown, to tick every locked book.
+- Duplicates shows only the books that are in the library more than once (the
+  same title and author), with the copies side by side and each copy's kind
+  (EPUB, Kindle, PDF ...) under it.
+- Pick the extras ticks every copy but one of each duplicate: Kindle copies
+  are ticked and EPUB copies kept. A copy that opens is always kept before a
+  locked one.
+- Clear picks takes every tick off. Done stops picking.
+- Delete asks first, then moves the ticked books to the Recycle Bin, so you
+  can get them back from there. Kindle's and Calibre's own files for a book go
+  with it, and the book's own folder when nothing else is left in it. A
+  folder holding anything else (a photo, a document, another book, a folder)
+  is never touched.
 
 
 FREE BOOKS

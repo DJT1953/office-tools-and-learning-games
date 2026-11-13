@@ -235,8 +235,13 @@ class TileDelegate(QStyledItemDelegate):
         rect = option.rect.adjusted(6, 6, -6, -6)
         painter.save()
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
-        painter.fillRect(rect, QColor("#cfe8ff") if selected else QColor("white"))
-        painter.setPen(QPen(QColor("#1565c0") if selected else QColor("#bbbbbb"), 3 if selected else 1))
+        picking, picked = self.page.picking, bool(data.get("picked"))
+        if picking and picked:                          # ticked to delete: orange
+            painter.fillRect(rect, QColor("#ffe0b2"))
+            painter.setPen(QPen(QColor("#e65100"), 4))
+        else:
+            painter.fillRect(rect, QColor("#cfe8ff") if selected else QColor("white"))
+            painter.setPen(QPen(QColor("#1565c0") if selected else QColor("#bbbbbb"), 3 if selected else 1))
         painter.drawRect(rect)
         cover = self.page.cover_for(data)
         scaled = cover.scaled(COVER, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
@@ -246,9 +251,20 @@ class TileDelegate(QStyledItemDelegate):
             sign = QFont("Segoe UI Emoji")
             sign.setPixelSize(30)
             painter.setFont(sign)
-            painter.fillRect(QRect(x + 4, rect.y() + 12, 42, 42), QColor(255, 255, 255, 220))
-            painter.drawText(QRect(x + 4, rect.y() + 12, 42, 42), Qt.AlignmentFlag.AlignCenter,
+            spot = QRect(x + 4, rect.y() + (60 if picking else 12), 42, 42)     # below the tick box
+            painter.fillRect(spot, QColor(255, 255, 255, 220))
+            painter.drawText(spot, Qt.AlignmentFlag.AlignCenter,
                              "\U0001F512" if data["progress"].startswith("Locked") else "\u26A0")
+        if picking:
+            box = QRect(rect.x() + 4, rect.y() + 4, 46, 46)
+            painter.fillRect(box, QColor("white"))
+            painter.setPen(QPen(QColor("#e65100") if picked else QColor("black"), 3))
+            painter.drawRect(box.adjusted(1, 1, -2, -2))
+            if picked:
+                tick = QFont("Segoe UI Symbol")
+                tick.setPixelSize(36)
+                painter.setFont(tick)
+                painter.drawText(box, Qt.AlignmentFlag.AlignCenter, "\u2714")
         if data["favorite"]:
             star = QFont("Segoe UI Symbol")
             star.setPixelSize(30)
@@ -272,10 +288,12 @@ class TileDelegate(QStyledItemDelegate):
         painter.setPen(QColor("#8b0000") if data["locked"] else QColor("black"))
         painter.drawText(QRect(rect.x() + 6, top + 94, rect.width() - 12, 28), Qt.AlignmentFlag.AlignHCenter,
                          data["progress"])
-        if data.get("genre"):
+        # Under the duplicates, each copy's kind (EPUB, Kindle ...) tells them apart; else its genre.
+        line = data.get("format", "") if self.page.duplicates else data.get("genre", "")
+        if line:
             painter.setPen(QColor("#0d47a1"))
             painter.drawText(QRect(rect.x() + 6, top + 124, rect.width() - 12, 28), Qt.AlignmentFlag.AlignHCenter,
-                             metrics.elidedText(data["genre"], Qt.TextElideMode.ElideRight, rect.width() - 12))
+                             metrics.elidedText(line, Qt.TextElideMode.ElideRight, rect.width() - 12))
         painter.restore()
 
 
@@ -296,6 +314,8 @@ class LibraryPage(QWidget):
     continue_requested = Signal()
     save_copy_requested = Signal(str, str)   # entry id, path
     free_books_requested = Signal()
+    pick_requested = Signal()
+    delete_requested = Signal(list)          # entry ids
     help_requested = Signal()
 
     def __init__(self, library: lib.Library, parent: QWidget | None = None) -> None:
@@ -304,6 +324,11 @@ class LibraryPage(QWidget):
         self.filter = "All"
         self.collection = ""
         self.genre = ""
+        self.picking = False                 # Pick books: covers get tick boxes, clicks tick them
+        self.picked: set[str] = set()
+        self.duplicates = False              # showing only books in the library more than once
+        self._dup_order: dict[str, tuple[int, int]] = {}
+        self._dup_groups = 0
         self._covers: dict[str, QPixmap] = {}
         self._entries: dict[str, lib.LibraryEntry] = {}
         self.scan_text = ""
@@ -316,6 +341,8 @@ class LibraryPage(QWidget):
                 ("Add folder", "\U0001F4C1", "Add a folder of books to the library", self.add_folder_requested),
                 ("Free books", "\U0001F4D6", "Websites where you can download books free",
                  self.free_books_requested),
+                ("Pick books", "\u2611", "Tick several covers, to delete them or to clear out duplicates",
+                 self.pick_requested),
                 ("Help", "?", "How to use the Book Reader", self.help_requested)):
             b = ui.tool_button(name, glyph, tip, signal.emit)
             # Never narrower than its whole word: a squeezed button shows "A…s" instead of "Add books".
@@ -324,6 +351,8 @@ class LibraryPage(QWidget):
             b.setSizePolicy(QSizePolicy.Policy.Minimum, b.sizePolicy().verticalPolicy())
             self.top_buttons[name] = b
             top.addWidget(b)
+        self.top_buttons["Pick books"].setCheckable(True)
+        self.pick_requested.connect(self.toggle_picking)
         top.addStretch(1)
         # The buttons, "Last read", and the search each get a row: side by side they don't fit
         # a usual window with big words, and a long title beside the buttons would wrap and cut them.
@@ -367,8 +396,9 @@ class LibraryPage(QWidget):
         self.grid.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.grid.setItemDelegate(TileDelegate(self))
         self.grid.itemSelectionChanged.connect(self._selection_changed)
-        self.grid.itemDoubleClicked.connect(lambda _item: self.open_selected())
-        self.grid.itemActivated.connect(lambda _item: self.open_selected())
+        self.grid.itemClicked.connect(self._tile_clicked)
+        self.grid.itemDoubleClicked.connect(lambda _item: None if self.picking else self.open_selected())
+        self.grid.itemActivated.connect(lambda _item: None if self.picking else self.open_selected())
         self.empty_message = QLabel("")
         self.empty_message.setWordWrap(True)
         self.empty_message.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -392,6 +422,29 @@ class LibraryPage(QWidget):
             b = ui.wide_button(name, slot, ui.SECOND_ROW, tip)
             self.strip_buttons[name] = b
             strip.addWidget(b)
+        self.pick_bar = QWidget()
+        rows = QVBoxLayout(self.pick_bar)
+        rows.setContentsMargins(0, 0, 0, 0)
+        self.pick_label = QLabel("")
+        self.pick_label.setStyleSheet("font-weight: bold;")
+        rows.addWidget(self.pick_label)      # its own line: beside the buttons they don't fit a usual window
+        bar = QHBoxLayout()
+        rows.addLayout(bar)
+        self.pick_buttons: dict[str, QPushButton] = {}
+        for name, slot, tip in (
+                ("Pick all shown", self.pick_all_shown, "Tick every cover shown now"),
+                ("Duplicates", self.show_duplicates, "Show only the books that are in the library more than once"),
+                ("Pick the extras", self.pick_extras,
+                 "Tick every copy but one of each duplicate: Kindle copies go, EPUB copies stay"),
+                ("Clear picks", self.clear_picks, "Take every tick off"),
+                ("Delete", self.delete_picked, "Move the ticked books to the Recycle Bin"),
+                ("Done", lambda: self.toggle_picking(False), "Stop picking books")):
+            b = ui.wide_button(name, slot, ui.SECOND_ROW, tip)
+            self.pick_buttons[name] = b
+            bar.addWidget(b)
+        bar.addStretch(1)
+        self.pick_buttons["Delete"].setStyleSheet("QPushButton { background: #ffcdd2; color: black; }")
+        self.pick_bar.hide()                 # hidden before it is wrapped, so it stays hidden
         self.status = QLabel("")
 
         layout = QVBoxLayout(self)
@@ -404,6 +457,9 @@ class LibraryPage(QWidget):
         layout.addWidget(self.empty_message, 1)
         self.strip_holder = ui.SideScroll(self.strip)
         layout.addWidget(self.strip_holder)
+        self.pick_holder = ui.SideScroll(self.pick_bar)
+        self.pick_holder.hide()
+        layout.addWidget(self.pick_holder)
         layout.addWidget(self.status)
         self.filter_buttons["All"].setChecked(True)
 
@@ -413,6 +469,13 @@ class LibraryPage(QWidget):
         entries = self.library.entries()
         self._entries = {e.id: e for e in entries}
         query = self.search_box.text().strip().casefold()
+        if self.duplicates:
+            groups = lib.duplicate_groups(entries)
+            self._dup_groups = len(groups)
+            self._dup_order = {}
+            for g, group in enumerate(groups):         # copies side by side, the one to keep first
+                ranked = sorted(group, key=lambda e: lib.keep_order(e, self.library.state(e.id)))
+                self._dup_order.update({e.id: (g, r) for r, e in enumerate(ranked)})
         shown = []
         for entry in entries:
             state = self.library.state(entry.id)
@@ -423,7 +486,9 @@ class LibraryPage(QWidget):
                 continue
             shown.append((entry, state))
         key = self.library.settings.sort
-        if key == "title":
+        if self.duplicates:
+            shown.sort(key=lambda es: self._dup_order[es[0].id])
+        elif key == "title":
             shown.sort(key=lambda es: sort_title(es[0].info.title))
         elif key == "author":
             shown.sort(key=lambda es: (not es[0].info.authors, (es[0].info.authors or [""])[0].casefold(),
@@ -445,7 +510,8 @@ class LibraryPage(QWidget):
                 "author": ", ".join(entry.info.authors) or "Unknown author",
                 "progress": progress_text(entry, state), "locked": bool(entry.info.lock or entry.info.error),
                 "favorite": state.favorite, "has_cover": self.library.cover(entry.id) is not None,
-                "genre": "" if main_genre in (genres.NO_GENRE, genres.OTHER) else main_genre})
+                "genre": "" if main_genre in (genres.NO_GENRE, genres.OTHER) else main_genre,
+                "picked": entry.id in self.picked, "format": entry.info.format})
             item.setSizeHint(TILE)
             self.grid.addItem(item)
             if entry.id == keep:
@@ -461,13 +527,18 @@ class LibraryPage(QWidget):
             self.empty_message.setText(self._empty_text(query))
         locked = sum(1 for e in entries if e.info.lock)
         text = plural(len(entries), "book") + (f" - {locked:,} locked" if locked else "")
-        if len(shown) != len(entries):
+        if self.duplicates:
+            text += f" - showing {len(shown):,} duplicate copies of {plural(self._dup_groups, 'book')}"
+        elif len(shown) != len(entries):
             text += f" - showing {len(shown):,}"
         self.status.setText(text + (f" - {self.scan_text}" if self.scan_text else ""))
         self._continue_text()
+        self._pick_text()
 
     def _passes(self, entry: lib.LibraryEntry, state: lib.BookState) -> bool:
         locked = bool(entry.info.lock or entry.info.error)
+        if self.duplicates:
+            return entry.id in self._dup_order
         if self.collection:
             return self.collection in state.collections
         if self.genre:
@@ -492,6 +563,8 @@ class LibraryPage(QWidget):
             return f"The collection “{self.collection}” is empty."
         if self.genre:
             return f"No books are in the genre “{self.genre}”."
+        if self.duplicates:
+            return "No book is in the library more than once."
         return {"Favorites": "You have no favorites yet. Click a book, then press Favorite.",
                 "Finished": "No books are marked finished yet.",
                 "Reading": "You aren't part-way through any book yet.",
@@ -528,7 +601,7 @@ class LibraryPage(QWidget):
 
     # ---------------------------------------------------------------- choosing
     def set_filter(self, name: str) -> None:
-        self.filter, self.collection, self.genre = name, "", ""
+        self.filter, self.collection, self.genre, self.duplicates = name, "", "", False
         for n, b in self.filter_buttons.items():
             b.setChecked(n == name)
         self.collections_button.setText("Collections ▾")
@@ -536,7 +609,7 @@ class LibraryPage(QWidget):
         self.refresh()
 
     def show_collection(self, name: str) -> None:
-        self.collection, self.genre = name, ""
+        self.collection, self.genre, self.duplicates = name, "", False
         for b in self.filter_buttons.values():
             b.setChecked(False)
         self.collections_button.setText(f"Collection: {name} ▾")
@@ -549,7 +622,7 @@ class LibraryPage(QWidget):
 
     def show_genre(self, name: str) -> None:
         """Show only the books of one genre; All (or any other button below) shows every book again."""
-        self.genre, self.collection = name, ""
+        self.genre, self.collection, self.duplicates = name, "", False
         for b in self.filter_buttons.values():
             b.setChecked(False)
         self.collections_button.setText("Collections ▾")
@@ -569,6 +642,81 @@ class LibraryPage(QWidget):
             menu.addAction("There are no books yet.").setEnabled(False)
         self.genre_menu = menu
         menu.popup(self.genre_button.mapToGlobal(self.genre_button.rect().bottomLeft()))
+
+    # ---------------------------------------------------------------- picking and deleting
+    def toggle_picking(self, on: bool | None = None) -> None:
+        """Pick books: every cover gets a tick box and a click ticks it (it never opens the book);
+        a bar of picking buttons takes the place of the chosen book's buttons."""
+        self.picking = (not self.picking) if on is None else on
+        self.top_buttons["Pick books"].setChecked(self.picking)
+        self.grid.clearSelection()
+        self.grid.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection if self.picking
+                                   else QAbstractItemView.SelectionMode.SingleSelection)
+        self.pick_bar.setVisible(self.picking)
+        self.pick_holder.setVisible(self.picking)
+        if not self.picking:
+            self.picked.clear()
+            if self.duplicates:
+                self.set_filter("All")
+                return
+        self.refresh(keep="")
+
+    def _tile_clicked(self, item: QListWidgetItem) -> None:
+        if not self.picking:
+            return
+        data = dict(item.data(Qt.ItemDataRole.UserRole))
+        if data["id"] in self.picked:
+            self.picked.discard(data["id"])
+        else:
+            self.picked.add(data["id"])
+        data["picked"] = data["id"] in self.picked
+        item.setData(Qt.ItemDataRole.UserRole, data)
+        self._pick_text()
+
+    def _pick_text(self) -> None:
+        self.pick_label.setText(f"{plural(len(self.picked), 'book')} picked")
+
+    def pick_all_shown(self) -> None:
+        self.picked.update(t["id"] for t in self.tiles())
+        self.refresh(keep="")
+
+    def show_duplicates(self) -> None:
+        """Only the books in the library more than once (same title and author), copies side by side."""
+        self.duplicates, self.collection, self.genre = True, "", ""
+        for b in self.filter_buttons.values():
+            b.setChecked(False)
+        self.collections_button.setText("Collections ▾")
+        self.genre_button.setText("Genre")
+        self.refresh(keep="")
+
+    def pick_extras(self) -> None:
+        """Tick every copy but the one best kept of each duplicate: Kindle copies before EPUB ones,
+        locked ones before ones that open (see lib.keep_order)."""
+        if not self.duplicates:
+            self.show_duplicates()
+        groups = lib.duplicate_groups(self.library.entries())
+        self.picked.update(e.id for e in lib.duplicate_extras(groups, self.library.state))
+        self.refresh(keep="")
+
+    def clear_picks(self) -> None:
+        self.picked.clear()
+        self.refresh(keep="")
+
+    def delete_picked(self) -> None:
+        ids = sorted(i for i in self.picked if i in self._entries)
+        if not ids:
+            ui.inform(self, "Delete books", "Tick the covers of the books to delete first: click a cover "
+                      "to tick it, or press Pick all shown.")
+            return
+        if ui.ask(self, "Delete books?",
+                  f"Delete {plural(len(ids), 'book')}?\n\nThey go to the Recycle Bin, so you can get them back "
+                  "from there if you change your mind. Kindle's and Calibre's own files for them go too, "
+                  "and a book's own folder when nothing else is left in it.", "Delete", "Keep them"):
+            self.delete_requested.emit(ids)
+
+    def books_deleted(self, gone: list[str]) -> None:
+        self.picked.difference_update(gone)
+        self.refresh(keep="")
 
     def _sort_menu(self) -> None:
         menu = QMenu(self)
@@ -761,6 +909,7 @@ class MainWindow(QMainWindow):
         self.library_page.continue_requested.connect(self.continue_reading)
         self.library_page.save_copy_requested.connect(self.save_copy)
         self.library_page.free_books_requested.connect(self.free_books)
+        self.library_page.delete_requested.connect(self.delete_books)
         self.library_page.help_requested.connect(self.show_help)
         self.reading_page.library_requested.connect(self.show_library)
         self.reading_page.full_screen_requested.connect(self._full_screen)
@@ -952,6 +1101,20 @@ class MainWindow(QMainWindow):
             finished()
         else:
             self._copy_job = job
+
+    def delete_books(self, idents: list[str]) -> None:
+        """Move books picked in the library to the Recycle Bin (helper files and own folders too)."""
+        if self.reading_page.book_id in idents:
+            self.reading_page.close_book()          # never leave the open book's file in use
+        gone, failed = self.library.delete_books(idents, ui.move_to_trash)
+        self.library_page.books_deleted(gone)
+        if failed:
+            more = f"\n... and {len(failed) - 15:,} more" if len(failed) > 15 else ""
+            ui.inform(self, "Some books weren't deleted",
+                      "These couldn't be moved to the Recycle Bin, perhaps because another program has "
+                      "them open:\n\n" + "\n".join(failed[:15]) + more)
+        if self.scanning():
+            self.start_scan()                       # a look through the folders began before: look again
 
     def free_books(self) -> None:
         """A menu of websites that give books away free without signing up: the one picked opens in

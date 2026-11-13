@@ -165,6 +165,12 @@ def open_url(url: str) -> None:
     QDesktopServices.openUrl(QUrl(url))
 
 
+def move_to_trash(path: str) -> bool:
+    """Move a file or folder to the Windows Recycle Bin; False when it couldn't be moved."""
+    from PySide6.QtCore import QFile
+    return bool(QFile.moveToTrash(path))
+
+
 def show_in_folder(path: str) -> None:
     """Open the file's folder in File Explorer with the file picked."""
     import os
