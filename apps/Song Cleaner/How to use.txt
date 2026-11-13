@@ -1,0 +1,99 @@
+SONG CLEANER
+============
+
+Tidies a folder of songs recorded from the radio: better names, copies of
+the same song removed, and talk or noise trimmed from the ends.
+
+THE FIRST TIME
+
+   Double-click  Install_SongCleaner.bat  once. It installs everything the
+   Song Cleaner needs, all free:
+     - Python, if this computer does not have it
+       (https://www.python.org/downloads/)
+     - the Python add-ons PySide6, numpy, mutagen and imageio-ffmpeg
+       (about 300 MB to download, 850 MB installed; imageio-ffmpeg brings
+       FFmpeg, which reads and cuts MP3s)
+     - if you say yes, the small song recogniser Chromaprint fpcalc
+       (https://acoustid.org/chromaprint), only needed to look names up online
+     - a "Song Cleaner" shortcut on the Desktop
+   Running it again is safe.
+
+After that, start it from the Desktop shortcut or by double-clicking
+Run_SongCleaner.bat
+
+
+THE THREE STEPS
+
+1. Scan
+   Press "Choose folder" and pick the folder your songs are in, then press
+   "1. Scan". It reads every MP3. Nothing is changed. The first scan of a
+   big folder takes a while (about 20 minutes for 5,000 songs); after that
+   it remembers each song, so later scans take seconds. You can press Stop
+   and carry on another day.
+
+2. Look through the pages
+   Every proposal has a tick box. Untick anything you do not want.
+   The Play buttons let you hear a song, or just the part that would be cut.
+
+3. Apply
+   Press "3. Apply ticked changes". It tells you what it is about to do and
+   asks first. "Undo last Apply" puts everything back.
+
+
+NOTHING IS DELETED
+
+   Copies that are removed go to a folder beside your music folder:
+        Song Cleaner - removed copies
+   The untouched originals of trimmed songs go to:
+        Song Cleaner - originals before trimming
+   When you are happy with the result you can delete those two folders
+   yourself to get the disk space back. Until then, nothing is lost.
+
+
+THE PAGES
+
+Names
+   The name now and the name proposed. It removes things like "Auto Dj Bud"
+   and "_01", puts "abba-waterloo" right, finishes titles that were cut
+   off, and makes one artist's spellings agree. "Edit name" lets you type
+   your own. A doubtful name (no title, or a record label where the title
+   should be) is listed with no change.
+
+Copies
+   Files that are the same recording, found by their sound, not their
+   names. One is marked KEEP: the fullest, then the one with least talk,
+   then the best sound. The others are ticked for removal. "Keep this one
+   instead" changes which. Where the program cannot tell which copy is the
+   fuller, nothing is ticked, so listen and choose.
+
+Trims
+   Cuts the program is sure of. It is only sure when two signs agree: a gap
+   in the sound, a change in the sound, or another copy of the same song.
+
+Listen and decide
+   Cuts it is not sure of. Very often what one recording has "extra" is
+   really more of the song, which the other station faded early. Play
+   them, and tick only the ones you want. "Start earlier", "Start later",
+   "End earlier" and "End later" move a cut by half a second.
+
+Problems
+   Files that could not be read, songs that share a name but are different
+   recordings (both are kept), and anything Apply had to skip.
+
+
+LOOKING NAMES UP ONLINE (optional)
+
+   For doubtful names the program can ask AcoustID, a free public music
+   database. It needs a free key. Press Settings for the steps. The first
+   time, it also asks to download a small free program that recognises
+   songs. Only the song's fingerprint and length are sent, never the file.
+
+
+GOOD TO KNOW
+
+   Trimming does not lower the sound quality. The song is not re-recorded;
+   the unwanted part is simply left off.
+   A cut cannot be faded, so it is placed on the quietest moment nearby.
+   A DJ talking over the music cannot be removed, only cut off together
+   with that part of the song.
+   The program expects one song per file, as MP3.
