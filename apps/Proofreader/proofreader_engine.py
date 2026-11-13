@@ -454,11 +454,12 @@ class _Reviewer:
         self.edits.append(Edit(index, start, end, new, kind, why))
 
     # -- Word's second look at words the free checker passed
-    def second_opinion(self, flagged):
+    def second_opinion(self, flagged, targets):
         if not (self.speller and self.options.spelling):
             return
         seen = set()
-        for index, text in enumerate(self.texts):
+        for index in targets:
+            text = self.texts[index]
             for m in WORD.finditer(text):
                 word = m.group()
                 key = (index, m.start())
@@ -477,19 +478,23 @@ class _Reviewer:
                                        "Word questions this word; the free checker accepts it.",
                                        opinion[:3]))
 
-    def run(self, checker):
-        self.protected = [protected_spans(t, self.options.keep_words) for t in self.texts]
-        answers = checker.check_many(self.texts)
+    def run(self, checker, only=None):
+        targets = range(len(self.texts)) if only is None else sorted(only)
+        self.protected = [protected_spans(t, self.options.keep_words) if i in targets else []
+                          for i, t in enumerate(self.texts)]
+        # Paragraphs left out are sent empty, which the checker skips.
+        wanted = set(targets)
+        answers = checker.check_many([t if i in wanted else "" for i, t in enumerate(self.texts)])
         flagged = set()
-        for index, matches in enumerate(answers):
+        for index in targets:
             ours = own_matches(self.texts[index], self.options)
-            for match in ours + list(matches):
+            for match in ours + list(answers[index]):
                 if classify(match) == "dictionary":
                     flagged.add((index, match["offset"]))
                 self.consider(index, match)
             if self.options.runons:
                 self.notes.extend(runon_notes(index, self.texts[index]))
-        self.second_opinion(flagged)
+        self.second_opinion(flagged, targets)
         return self.without_overlaps(), self.notes
 
     def without_overlaps(self):
@@ -505,9 +510,11 @@ class _Reviewer:
         return kept
 
 
-def review(texts, options, checker, speller=None):
-    """One look over a document's paragraphs: (edits to make, notes to list)."""
-    return _Reviewer(list(texts), options, speller).run(checker)
+def review(texts, options, checker, speller=None, only=None):
+    """One look over a document's paragraphs: (edits to make, notes to list).
+    only, a set of paragraph numbers, limits the look to those paragraphs;
+    names are still learned from the whole document."""
+    return _Reviewer(list(texts), options, speller).run(checker, only)
 
 
 def apply_edits(text, edits):

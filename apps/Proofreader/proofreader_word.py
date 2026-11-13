@@ -268,9 +268,9 @@ class WordDocument:
 class WordSpeller:
     """Word's dictionary: None for a word it accepts, else its suggestions."""
 
-    def __init__(self, word):
+    def __init__(self, word, known=None):
         self.word = word
-        self.known = {}
+        self.known = {} if known is None else known     # can outlive this copy of Word
 
     def suggest(self, text):
         if text not in self.known:
@@ -326,8 +326,8 @@ class Word:
     def open(self, path):
         return WordDocument(self, path)
 
-    def speller(self):
-        return WordSpeller(self)
+    def speller(self, known=None):
+        return WordSpeller(self, known)
 
     def need_a_document(self):
         """Word only suggests spellings while some document is open."""

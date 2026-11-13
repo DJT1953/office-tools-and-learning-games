@@ -54,9 +54,35 @@ Using it
    A folder means the documents directly in it. Tick "Include the folders
    inside any folder I add" to go deeper.
 2. Tick what to fix.
-3. Press "Start proofreading". "Stop" finishes the document in hand and stops.
+3. Press "Start proofreading". The line under the bar shows which document
+   it is on and, after the first few, about how long is left.
 4. Read the report in the lower half of the window. It is also saved in the
    "corrected" folder as "Proofreading report <date and time>.txt".
+
+
+Pause, Stop, and picking up where you left off
+----------------------------------------------
+"Pause" holds the work after the step in hand; the button then says
+"Resume". Press it to carry on. Nothing is lost while it waits.
+
+"Stop" ends the run for now. Your place is saved after every document, so
+nothing already done is done again.
+
+The next time you open the Proofreader it asks:
+    "Pick up where you left off last time?"
+  - "Pick up where I left off" carries on with the documents still to do,
+    with the same tick boxes as before. The final report covers the whole
+    batch, the earlier documents included.
+  - "Not now" keeps your place; you are asked again next time.
+  - "Put it aside for good" forgets the unfinished batch. The corrected
+    copies already made stay where they are.
+
+Your place is also kept if the Proofreader is closed part-way, or the
+computer restarts or loses power. A document that was cut off part-way is
+simply done again.
+
+Starting a different batch while one is unfinished asks first, because only
+one batch can be picked up at a time.
 
 
 How it decides
@@ -90,9 +116,15 @@ So the app:
 The other tick boxes
 --------------------
 "Have Microsoft Word check after the free checker"
-    Word settles spellings the free checker is unsure of, and the sentences
-    Word's grammar check questions are listed in the report. Word does not
-    offer its grammar fixes to other programs, so those are listed only.
+    Word settles spellings the free checker is unsure of, and lists words
+    it questions that the free checker let through.
+
+"Also list sentences Word's grammar check questions"  (off at first)
+    Adds those sentences to the report, under LEFT FOR YOU TO DECIDE. Word
+    does not offer its grammar fixes to other programs, so they are listed
+    only. Word has to work out the grammar of every whole document for this,
+    which makes the whole run two to three times slower, so tick it only
+    when you want it.
 
 "Also save a copy that shows each change"
     Adds "<name> - changes shown.docx" to the corrected folder. Open it in
@@ -106,7 +138,7 @@ The other tick boxes
 On a computer without Microsoft Word
 ------------------------------------
 The app looks for Word when it starts. If Word is not there:
-- Word's check is skipped, and the two tick boxes that need Word are greyed
+- Word's check is skipped, and the tick boxes that need Word are greyed
   out, with a note saying so. The report says so too.
 - .docx and .txt documents are still corrected, by the free checker alone.
   Expect a few more items under "LEFT FOR YOU TO DECIDE", since Word is not
@@ -125,6 +157,15 @@ Good to know
 - The checkers do not catch everything. A wrong word that is spelled right
   ("are office" for "our office") can slip through. Skim the result.
 - English (United States) only.
+- Long batches: every 50 documents the Proofreader closes Word and the free
+  checker and starts them afresh, which hands back the memory they built up
+  and keeps it from slowing down. It takes a few seconds and says so on the
+  line under the bar.
+- Memory: the free checker is given 4 GB on computers with 16 GB or more,
+  2 GB on 8 GB computers, and 1 GB on smaller ones.
+- Speed: in a test of 150 documents of about 4 pages each, it took under 2
+  seconds a document, 4 1/2 minutes for all 150 (it used to take 17). After
+  a correction, only the paragraphs that changed are checked again.
 
 
 Files
@@ -141,3 +182,4 @@ proofreader_job.py       copies, batches and the report
 
 The free checker is stored in  %LOCALAPPDATA%\Proofreader\tools
 Settings are stored in         %APPDATA%\Proofreader\settings.json
+Your place in a batch is in    %APPDATA%\Proofreader\unfinished batch.jsonl

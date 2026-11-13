@@ -15,6 +15,8 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import time
 import traceback
 
 TITLE = "Proofreader"
@@ -60,8 +62,8 @@ sys.excepthook = show_crash
 if __name__ == "__main__":
     install_missing()
 
-from PySide6.QtCore import Qt, QThread, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QFont
+from PySide6.QtCore import Qt, QThread, QTimer, QUrl, Signal
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QPalette
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QGroupBox, QHBoxLayout,
     QLabel, QListWidget, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout,
@@ -81,15 +83,33 @@ BOXES = (
 )
 CHOICES = (
     ("use_word", "Have Microsoft Word check after the free checker", True),
+    ("word_grammar", "Also list sentences Word's grammar check questions (much slower)", False),
     ("show_changes", "Also save a copy that shows each change, to accept or reject in Word", False),
     ("subfolders", "Include the folders inside any folder I add", False),
 )
-WORD_ONLY = ("use_word", "show_changes")        # greyed out when Word is not installed
+WORD_ONLY = ("use_word", "word_grammar", "show_changes")    # greyed out without Word
 
 
 def settings_file():
     base = os.environ.get("APPDATA") or os.path.expanduser("~")
     return os.path.join(base, "Proofreader", "settings.json")
+
+
+def progress_file():
+    """Where a batch's progress is kept, so it can be picked up next time."""
+    return os.path.join(os.path.dirname(settings_file()), "unfinished batch.jsonl")
+
+
+def time_left(seconds):
+    """A rough "about 20 minutes left", or "" while it is too early to tell."""
+    if seconds is None:
+        return ""
+    minutes = round(seconds / 60)
+    if minutes < 1:
+        return "less than a minute left"
+    if minutes < 90:
+        return f"about {minutes} minute{'s' if minutes != 1 else ''} left"
+    return f"about {seconds / 3600:.1f} hours left"
 
 
 def load_settings():
@@ -123,47 +143,118 @@ def parse_words(text):
 class Worker(QThread):
     """Does the proofreading away from the window so it stays responsive."""
     step = Signal(int, int, str)        # done, total, what is happening
-    finished_ok = Signal(list, list, bool)      # results, report files, Word was missing
+    note = Signal(str)                  # words for the line under the bar, nothing more
+    paused = Signal(bool)               # True while it is waiting for Resume
+    finished_ok = Signal(list, list, bool, bool)    # results, reports, Word missing, all done
     failed = Signal(str)
 
-    def __init__(self, files, settings, download, has_word=True):
+    def __init__(self, files, settings, download, has_word=True, journal=None, earlier=(),
+                 word_missing_before=False):
         super().__init__()
         self.files = files
         self.settings = settings
         self.download = download
         self.has_word = has_word
+        self.journal = journal
+        self.earlier = list(earlier)            # documents done before a pick-up
+        self.word_missing_before = word_missing_before
         self.stopping = False
+        self.carry_on = threading.Event()
+        self.carry_on.set()
+        self.started_at = None
+        self.needs_word = False
+        self.word_missing = False
+        self.parts_begun = 0
+
+    # ------------------------------------------------------------ pausing
+    def pause(self):
+        self.carry_on.clear()
+
+    def resume(self):
+        self.carry_on.set()
+
+    def stop(self):
+        self.stopping = True
+        self.carry_on.set()                     # a paused run must wake up to stop
+
+    def wait_while_paused(self):
+        """Called between steps. Word and the checker stay ready meanwhile."""
+        if self.carry_on.is_set():
+            return
+        self.paused.emit(True)
+        held = time.monotonic()
+        while not self.carry_on.wait(0.25):
+            pass
+        if self.started_at is not None:         # time spent paused is not working time
+            self.started_at += time.monotonic() - held
+        self.paused.emit(False)
+
+    def report_step(self, done, total, name):
+        if self.started_at is None:
+            self.started_at = time.monotonic()  # timing starts with the first document
+        before = len(self.earlier)
+        left = None
+        if done >= 2 and self.started_at is not None:
+            per_document = (time.monotonic() - self.started_at) / done
+            left = per_document * (total - done)
+        text = f"Proofreading {name}" if name else "Finishing..."
+        if name and left is not None:
+            text += f"   - {time_left(left)}"
+        self.step.emit(before + done, before + total, text)
+
+    # ------------------------------------------------------------ Word and the checker
+    def open_tools(self):
+        """Start the free checker and, when wanted, Word. Done afresh for every
+        50 documents, so the memory they gather is handed back."""
+        first = self.parts_begun == 0
+        self.parts_begun += 1
+        if first:
+            self.step.emit(0, 0, "Starting the free checker...")
+        else:
+            self.note.emit("Freeing memory: starting Word and the free checker afresh "
+                           "(a few seconds every 50 documents)...")
+        checker = tools.LanguageTool().start()
+        word = None
+        if self.needs_word and self.has_word:
+            if first:
+                self.step.emit(0, 0, "Starting Microsoft Word...")
+            try:
+                import proofreader_word
+                word = proofreader_word.Word()
+            except Exception:
+                word = None         # installed but would not start: go on without it
+        if self.needs_word and word is None and not self.word_missing:
+            self.word_missing = True
+            if self.journal:
+                self.journal.word_was_missing()
+        return checker, word
+
+    @staticmethod
+    def close_tools(checker, word):
+        try:
+            if word is not None:
+                word.close()
+        finally:
+            checker.stop()
 
     def run(self):
-        checker = word = None
         try:
             if self.download:
                 tools.install(lambda label, part: self.step.emit(int(part * 1000), 1000, label))
-            self.step.emit(0, 0, "Starting the free checker...")
-            checker = tools.LanguageTool().start()
-            needs_word = self.settings.use_word or any(
+            self.needs_word = self.settings.use_word or any(
                 not f.lower().endswith(".txt") for f in self.files)
-            if needs_word and self.has_word:
-                self.step.emit(0, 0, "Starting Microsoft Word...")
-                try:
-                    import proofreader_word
-                    word = proofreader_word.Word()
-                except Exception:
-                    word = None         # installed but would not start: go on without it
-            missing = needs_word and word is None
-            results = job.run(self.files, self.settings, checker, word,
-                              lambda done, total, name: self.step.emit(
-                                  done, total, f"Proofreading {name}" if name else "Finishing..."),
-                              lambda: self.stopping)
+            new = job.run_in_parts(self.files, self.settings, self.open_tools, self.close_tools,
+                                   self.report_step, lambda: self.stopping,
+                                   self.wait_while_paused, self.journal)
+            missing = self.word_missing or self.word_missing_before
+            all_done = len(new) == len(self.files) and not self.stopping
+            if all_done and self.journal:
+                self.journal.finish()           # nothing left to pick up
+            results = self.earlier + new
             reports = job.save_report(results, word_missing=missing) if results else []
-            self.finished_ok.emit(results, reports, missing)
+            self.finished_ok.emit(results, reports, missing, all_done)
         except Exception as error:
             self.failed.emit(f"{error}\n\n{traceback.format_exc()[-900:]}")
-        finally:
-            if word is not None:
-                word.close()
-            if checker is not None:
-                checker.stop()
 
 
 class KeepWords(QDialog):
@@ -193,12 +284,14 @@ class Window(QWidget):
         self.saved = load_settings()
         self.keep_words = list(self.saved.get("keep_words", []))
         self.has_word = job.word_installed()
+        self.journal = job.Journal(progress_file())
         self.worker = None
         self.reports = []
         self.folders = []
         self.build()
         self.add_paths(paths)
         self.refresh()
+        QTimer.singleShot(0, self.offer_pick_up)    # once the window is on screen
 
     # ------------------------------------------------------------ layout
     def build(self):
@@ -257,15 +350,17 @@ class Window(QWidget):
         outer.addWidget(promise)
 
         go = QHBoxLayout()
-        self.start_button = self.button("Start proofreading", self.start, go)
+        self.start_button = self.button("Start proofreading", lambda: self.start(), go)
+        self.pause_button = self.button("Pause", self.toggle_pause, go)
         self.stop_button = self.button("Stop", self.stop, go)
         bold = QFont(self.start_button.font())
         bold.setBold(True)
         self.start_button.setFont(bold)
-        self.start_button.setMinimumHeight(44)
-        self.stop_button.setMinimumHeight(44)
+        for button in (self.start_button, self.pause_button, self.stop_button):
+            button.setMinimumHeight(44)
         go.setStretch(0, 3)
         go.setStretch(1, 1)
+        go.setStretch(2, 1)
         outer.addLayout(go)
 
         self.bar = QProgressBar()
@@ -368,7 +463,7 @@ class Window(QWidget):
         options = Options(keep_words=tuple(self.keep_words),
                           **{key: ticked[key] for key, _ in BOXES})
         return job.Settings(options, ticked["use_word"], ticked["show_changes"],
-                            ticked["subfolders"])
+                            ticked["subfolders"], ticked["word_grammar"])
 
     def remember(self):
         # without Word its boxes are forced off; keep what the user last chose
@@ -390,20 +485,31 @@ class Window(QWidget):
         self.remove_button.setEnabled(not busy and bool(self.list.selectedItems()))
         self.clear_button.setEnabled(not busy and self.list.count() > 0)
         self.start_button.setEnabled(not busy and self.list.count() > 0)
-        self.stop_button.setEnabled(busy)
+        stopping = busy and self.worker.stopping
+        self.pause_button.setEnabled(busy and not stopping)
+        if not busy:
+            self.pause_button.setText("Pause")
+        self.stop_button.setEnabled(busy and not stopping)
         self.open_folder_button.setEnabled(bool(self.folders))
         self.open_report_button.setEnabled(bool(self.reports))
 
-    def start(self):
-        settings = self.settings()
-        if not any(settings.options.wants(key) for key, _ in BOXES):
-            QMessageBox.information(self, TITLE, "Tick at least one thing to fix.")
-            return
-        files = job.collect(self.paths(), settings.subfolders)
-        if not files:
-            QMessageBox.information(self, TITLE, "There are no .doc, .docx, .rtf or .txt "
-                                                 "documents in what you added.")
-            return
+    def start(self, unfinished=None):
+        """Start a new batch, or carry on with an unfinished one."""
+        if unfinished:
+            settings, files = unfinished.settings, unfinished.left
+        else:
+            settings = self.settings()
+            if not any(settings.options.wants(key) for key, _ in BOXES):
+                QMessageBox.information(self, TITLE, "Tick at least one thing to fix.")
+                return
+            files = job.collect(self.paths(), settings.subfolders)
+            if not files:
+                QMessageBox.information(self, TITLE, "There are no .doc, .docx, .rtf or .txt "
+                                                     "documents in what you added.")
+                return
+            waiting = self.journal.load()
+            if waiting and not self.replace_unfinished(waiting):
+                return
         download = not tools.installed()
         if download and QMessageBox.question(
                 self, TITLE,
@@ -416,8 +522,16 @@ class Window(QWidget):
         self.remember()
         self.report.clear()
         self.reports, self.folders = [], []
-        self.worker = Worker(files, settings, download, self.has_word)
+        if unfinished:
+            job.tidy_half_done(unfinished.half_done)
+            self.worker = Worker(files, settings, download, self.has_word, self.journal,
+                                 unfinished.done, unfinished.word_missing)
+        else:
+            self.journal.begin(self.paths(), files, settings)
+            self.worker = Worker(files, settings, download, self.has_word, self.journal)
         self.worker.step.connect(self.show_step)
+        self.worker.paused.connect(self.show_paused)
+        self.worker.note.connect(self.status.setText)
         self.worker.finished_ok.connect(self.done)
         self.worker.failed.connect(self.went_wrong)
         self.worker.finished.connect(self.worker_gone)
@@ -426,8 +540,90 @@ class Window(QWidget):
 
     def stop(self):
         if self.worker:
-            self.worker.stopping = True
-            self.status.setText("Stopping after the document in hand...")
+            self.worker.stop()
+            self.status.setText("Stopping... Your place is saved, so next time you can pick "
+                                "up where you left off.")
+            self.refresh()
+
+    def toggle_pause(self):
+        if not self.worker:
+            return
+        if self.pause_button.text() == "Pause":
+            self.worker.pause()
+            self.pause_button.setText("Resume")
+            self.status.setText("Pausing after the step in hand...")
+        else:
+            self.worker.resume()
+            self.pause_button.setText("Pause")
+            self.status.setText("Carrying on...")
+
+    def show_paused(self, paused):
+        if paused:
+            self.status.setText(f"Paused after {self.bar.value()} of {self.bar.maximum()} "
+                                "documents. Press Resume to carry on. You can also close the "
+                                "Proofreader and pick up where you left off next time.")
+
+    # ------------------------------------------------------------ picking up
+    def offer_pick_up(self):
+        """If a batch was left unfinished last time, offer to carry on with it."""
+        if self.busy():
+            return
+        unfinished = self.journal.load()
+        if not unfinished:
+            return
+        choice = self.ask_pick_up(unfinished)
+        if choice == "pick up":
+            self.pick_up(unfinished)
+        elif choice == "forget":
+            self.journal.finish()
+            self.status.setText("The unfinished batch was put aside. Its corrected copies "
+                                "stay where they are.")
+        else:
+            self.status.setText(f"Your unfinished batch ({len(unfinished.left)} documents "
+                                "still to do) is kept and will be offered again next time.")
+
+    def ask_pick_up(self, unfinished):
+        """The question shown when the Proofreader opens. Returns "pick up",
+        "later" or "forget"."""
+        box = QMessageBox(self)
+        box.setWindowTitle(TITLE)
+        box.setIcon(QMessageBox.Question)
+        done = len(unfinished.files) - len(unfinished.left)
+        box.setText("Pick up where you left off last time?")
+        box.setInformativeText(
+            f"The batch you started on {unfinished.when()} stopped after {done} of "
+            f"{len(unfinished.files)} documents.\n\n"
+            f"Picking up proofreads the {len(unfinished.left)} documents still to do, with the "
+            "same choices as before. The ones already done are not done again.")
+        pick = box.addButton("Pick up where I left off", QMessageBox.AcceptRole)
+        box.addButton("Not now", QMessageBox.RejectRole)
+        forget = box.addButton("Put it aside for good", QMessageBox.DestructiveRole)
+        box.setDefaultButton(pick)
+        box.exec()
+        clicked = box.clickedButton()
+        return "pick up" if clicked is pick else "forget" if clicked is forget else "later"
+
+    def replace_unfinished(self, waiting):
+        """Starting a new batch while one is unfinished: True to go ahead."""
+        return QMessageBox.question(
+            self, TITLE,
+            f"You have an unfinished batch from {waiting.when()}, with {len(waiting.left)} of "
+            f"{len(waiting.files)} documents still to do.\n\n"
+            "Starting a new batch means that one can no longer be picked up. "
+            "(Its corrected copies stay where they are.)\n\nStart the new batch?"
+            ) == QMessageBox.Yes
+
+    def pick_up(self, unfinished):
+        self.list.clear()
+        self.add_paths(unfinished.sources)
+        options = unfinished.settings.options
+        for key, _ in BOXES:
+            self.boxes[key].setChecked(options.wants(key))
+        self.boxes["use_word"].setChecked(unfinished.settings.use_word and self.has_word)
+        self.boxes["show_changes"].setChecked(unfinished.settings.show_changes and self.has_word)
+        self.boxes["word_grammar"].setChecked(unfinished.settings.word_grammar and self.has_word)
+        self.boxes["subfolders"].setChecked(unfinished.settings.subfolders)
+        self.start(unfinished)
 
     def show_step(self, done, total, text):
         self.bar.setRange(0, total)             # 0 to 0 shows a moving bar
@@ -435,7 +631,7 @@ class Window(QWidget):
         self.status.setText(text + (f"   ({done + 1} of {total})"
                                     if text.startswith("Proofreading") else ""))
 
-    def done(self, results, reports, word_missing):
+    def done(self, results, reports, word_missing, all_done=True):
         self.reports = reports
         self.folders = sorted({os.path.dirname(r.output) for r in results if r.output})
         self.report.setPlainText(job.report_text(results, word_missing=word_missing))
@@ -448,8 +644,10 @@ class Window(QWidget):
             text += f"  {failed} document(s) could not be corrected; see the report."
         if word_missing:
             text += "  Microsoft Word was not available, so its check was skipped."
-        if self.worker and self.worker.stopping:
-            text = "Stopped early. " + text
+        if not all_done:
+            left = self.bar.maximum() - len(results)
+            text = (f"Stopped with {left} document(s) still to do. Your place is saved: open "
+                    "the Proofreader again any time to pick up where you left off.  " + text)
         self.status.setText(text)
 
     def went_wrong(self, text):
@@ -472,8 +670,8 @@ class Window(QWidget):
 
     def closeEvent(self, event):
         if self.worker:
-            self.worker.stopping = True
-            self.status.setText("Finishing the document in hand before closing...")
+            self.worker.stop()
+            self.status.setText("Saving your place before closing...")
             QApplication.processEvents()
             if not self.worker.wait(120000):
                 # closing now would cut Word off in the middle of a document
@@ -485,11 +683,26 @@ class Window(QWidget):
         event.accept()
 
 
+def black_words(app):
+    """Every word black, not Windows' soft grey-black, whether the window is in
+    front or not. Greyed-out buttons stay grey: that shows they can't be
+    pressed just now."""
+    palette = app.palette()
+    roles = (QPalette.ColorRole.WindowText, QPalette.ColorRole.Text,
+             QPalette.ColorRole.ButtonText, QPalette.ColorRole.PlaceholderText,
+             QPalette.ColorRole.ToolTipText, QPalette.ColorRole.BrightText)
+    for group in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
+        for role in roles:
+            palette.setColor(group, role, QColor("black"))
+    app.setPalette(palette)
+
+
 def main():
     app = QApplication(sys.argv)
     font = app.font()
     font.setPointSize(max(font.pointSize(), 11))
     app.setFont(font)
+    black_words(app)
     window = Window(sys.argv[1:])
     window.show()
     sys.exit(app.exec())
