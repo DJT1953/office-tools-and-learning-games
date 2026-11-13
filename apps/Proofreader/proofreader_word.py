@@ -9,9 +9,11 @@ own spelling checker gives the second opinion.
 Word runs hidden and separately from any Word window the user has open.
 """
 
+import os
 import re
 
 import comtypes
+import comtypes.automation
 import comtypes.client
 
 from proofreader_engine import Note, Skip, _whole_words
@@ -25,6 +27,8 @@ MAX_GRAMMAR_NOTES = 60
 WD_PARAGRAPH = 4
 NO_PASSWORD = "not-a-real-password"
 MACROS_OFF = 3              # msoAutomationSecurityForceDisable
+ALERTS_OFF, ALERTS_ON = 0, -1
+WD_OPEN_FORMAT_AUTO = 0
 
 
 def _clean(raw, first_position):
@@ -54,9 +58,7 @@ class WordDocument:
     def __init__(self, word, path):
         self.word = word
         try:
-            # The made-up password is ignored by ordinary documents; a locked
-            # one then fails at once instead of waiting on a hidden prompt.
-            self.doc = word.app.Documents.Open(path, False, False, False, NO_PASSWORD)
+            self.doc = word.unseen(path, read_only=False)
         except Exception as error:
             raise Skip("Word could not open it (" + _reason(error) + ")")
         try:
@@ -297,12 +299,29 @@ class Word:
             raise RuntimeError("Microsoft Word could not be started (" + _reason(error) + ")")
         # never take over, or later close, a Word window the user is working in
         self.ours = not self.app.Visible and self.app.Documents.Count == 0
+        self.security_before = self.app.AutomationSecurity
         if self.ours:
-            self.app.DisplayAlerts = 0
+            self.app.DisplayAlerts = ALERTS_OFF
             # Word opened by a program runs a document's macros unless told not to.
             self.app.AutomationSecurity = MACROS_OFF
-            self.app.ScreenUpdating = False     # nothing is shown, so don't draw it
+        # Screen drawing is left ON. A document the user double-clicks can open
+        # inside this hidden Word, and with drawing off its pages look blank.
         self.scratch = None
+        self.paths = set()                  # the documents this app itself opened
+
+    def mine(self, path):
+        """Remember a document as the Proofreader's own, to close at the end."""
+        self.paths.add(os.path.normcase(os.path.abspath(path)))
+        return path
+
+    def unseen(self, path, read_only):
+        """Open a document without a window, so it stays out of sight even if
+        the user's own document has made this Word show itself. The made-up
+        password is ignored by ordinary documents; a locked one then fails at
+        once instead of waiting on a hidden prompt."""
+        return self.app.Documents.Open(
+            self.mine(path), False, read_only, False, NO_PASSWORD, "", False, "", "",
+            WD_OPEN_FORMAT_AUTO, comtypes.automation.VARIANT.missing, False)
 
     def open(self, path):
         return WordDocument(self, path)
@@ -318,9 +337,10 @@ class Word:
     def changes_copy(self, original, corrected, target):
         """A Word file showing every correction as a tracked change, so each
         can be accepted or rejected."""
-        before = self.app.Documents.Open(original, False, True, False, NO_PASSWORD)
+        self.mine(target)
+        before = self.unseen(original, read_only=True)
         try:
-            after = self.app.Documents.Open(corrected, False, True, False, NO_PASSWORD)
+            after = self.unseen(corrected, read_only=True)
             try:
                 shown = self.app.CompareDocuments(before, after, 2, 1)
                 try:
@@ -333,26 +353,31 @@ class Word:
             before.Close(0)
 
     def close(self):
-        if self.ours:
-            # This hidden Word is the Proofreader's alone, so nothing in it is
-            # the user's: shut every document without saving and leave.
-            try:
-                for document in list(self.app.Documents):
-                    try:
+        """Close the Proofreader's own documents and leave. Windows can open a
+        document the user double-clicks inside this same Word (Word then shows
+        itself), so anything that is not ours is never closed: Word is handed
+        over to the user instead, working normally again."""
+        try:
+            user_is_inside = not self.ours or bool(self.app.Visible)
+            for document in list(self.app.Documents):
+                try:
+                    unsaved = not document.Path
+                    known = os.path.normcase(document.FullName) in self.paths
+                    if known or (unsaved and not user_is_inside):
                         document.Close(0)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-            try:
-                self.app.Quit(0)
-            except Exception:
-                pass
-        elif self.scratch is not None:
-            try:
+                except Exception:
+                    pass
+            if self.ours:
+                if self.app.Documents.Count == 0:
+                    self.app.Quit(0)
+                else:
+                    self.app.DisplayAlerts = ALERTS_ON
+                    self.app.AutomationSecurity = self.security_before
+                    self.app.Visible = True
+            elif self.scratch is not None:
                 self.scratch.Close(0)
-            except Exception:
-                pass
+        except Exception:
+            pass                            # Word already gone: nothing left to tidy
         self.scratch = None
         self.app = None
         comtypes.CoUninitialize()
