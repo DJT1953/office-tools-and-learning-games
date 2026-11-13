@@ -99,7 +99,6 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket  # noqa: E402
 from PySide6.QtWidgets import (  # noqa: E402
     QAbstractItemView,
     QApplication,
-    QComboBox,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -111,6 +110,7 @@ from PySide6.QtWidgets import (  # noqa: E402
     QMenu,
     QPlainTextEdit,
     QPushButton,
+    QSizePolicy,
     QStackedWidget,
     QStyle,
     QStyledItemDelegate,
@@ -120,6 +120,7 @@ from PySide6.QtWidgets import (  # noqa: E402
 )
 
 import book_reader_formats as formats  # noqa: E402
+import book_reader_genres as genres  # noqa: E402
 import book_reader_library as lib  # noqa: E402
 import book_reader_ui as ui  # noqa: E402
 from book_reader_reading import ReadingPage, explain_lock, plural  # noqa: E402
@@ -131,8 +132,16 @@ COVER = QSize(200, 280)
 COVER_COLOURS = ["#5d4037", "#1a237e", "#004d40", "#4a148c", "#b71c1c", "#33691e", "#0d47a1", "#e65100",
                  "#263238", "#880e4f"]
 FILTERS = ["All", "Reading", "Not started", "Finished", "Favorites", "Locked"]
-SORT_NAMES = {"recent": "Most recent", "title": "Title", "author": "Author", "added": "Date added"}
+SORT_NAMES = {"recent": "Most recent", "title": "Title", "author": "Author", "genre": "Genre",
+              "added": "Date added"}
 BOOK_FILTER = "Books (*.epub *.mobi *.azw *.azw3 *.prc *.pdf *.txt *.htm *.html *.mht *.mhtml);;All files (*)"
+FREE_BOOKS = [
+    # Websites that let anyone download books free without signing up (checked 2026-11-13).
+    # name, address shown, page opened, what it has
+    ("Project Gutenberg", "gutenberg.org", "https://www.gutenberg.org/", "tens of thousands of free classic books"),
+    ("Standard Ebooks", "standardebooks.org", "https://standardebooks.org/ebooks",
+     "free classics, carefully edited"),
+]
 
 
 def server_name() -> str:
@@ -263,6 +272,10 @@ class TileDelegate(QStyledItemDelegate):
         painter.setPen(QColor("#8b0000") if data["locked"] else QColor("black"))
         painter.drawText(QRect(rect.x() + 6, top + 94, rect.width() - 12, 28), Qt.AlignmentFlag.AlignHCenter,
                          data["progress"])
+        if data.get("genre"):
+            painter.setPen(QColor("#0d47a1"))
+            painter.drawText(QRect(rect.x() + 6, top + 124, rect.width() - 12, 28), Qt.AlignmentFlag.AlignHCenter,
+                             metrics.elidedText(data["genre"], Qt.TextElideMode.ElideRight, rect.width() - 12))
         painter.restore()
 
 
@@ -282,6 +295,7 @@ class LibraryPage(QWidget):
     add_folder_requested = Signal()
     continue_requested = Signal()
     save_copy_requested = Signal(str, str)   # entry id, path
+    free_books_requested = Signal()
     help_requested = Signal()
 
     def __init__(self, library: lib.Library, parent: QWidget | None = None) -> None:
@@ -289,6 +303,7 @@ class LibraryPage(QWidget):
         self.library = library
         self.filter = "All"
         self.collection = ""
+        self.genre = ""
         self._covers: dict[str, QPixmap] = {}
         self._entries: dict[str, lib.LibraryEntry] = {}
         self.scan_text = ""
@@ -299,32 +314,33 @@ class LibraryPage(QWidget):
                 ("Continue reading", "▶", "Open the book you read last, where you left off", self.continue_requested),
                 ("Add books", "➕", "Add book files to the library", self.add_books_requested),
                 ("Add folder", "\U0001F4C1", "Add a folder of books to the library", self.add_folder_requested),
+                ("Free books", "\U0001F4D6", "Websites where you can download books free",
+                 self.free_books_requested),
                 ("Help", "?", "How to use the Book Reader", self.help_requested)):
             b = ui.tool_button(name, glyph, tip, signal.emit)
+            # Never narrower than its whole word: a squeezed button shows "A…s" instead of "Add books".
+            # (A set minimum width would win over this, so it goes; the row scrolls sideways instead.)
+            b.setMinimumWidth(0)
+            b.setSizePolicy(QSizePolicy.Policy.Minimum, b.sizePolicy().verticalPolicy())
             self.top_buttons[name] = b
             top.addWidget(b)
-        self.top_buttons["Continue reading"].setMinimumWidth(190)
-        side = QVBoxLayout()
+        top.addStretch(1)
+        # The buttons, "Last read", and the search each get a row: side by side they don't fit
+        # a usual window with big words, and a long title beside the buttons would wrap and cut them.
         self.continue_label = QLabel("")
         self.continue_label.setWordWrap(True)
-        side.addWidget(self.continue_label)
         row = QHBoxLayout()
         self.search_box = SearchBox()
-        self.search_box.setPlaceholderText("Find a book by title or author")
+        self.search_box.setPlaceholderText("Find a title or author")
         self.search_box.setMinimumHeight(52)
         self.search_box.setClearButtonEnabled(True)
         self.search_box.textChanged.connect(lambda _t: self.refresh())
         row.addWidget(self.search_box, 1)
-        row.addWidget(QLabel("Order:"))
-        self.sort_box = QComboBox()
-        self.sort_box.setMinimumHeight(52)
-        for key, name in SORT_NAMES.items():
-            self.sort_box.addItem(name, key)
-        self.sort_box.setCurrentIndex(list(SORT_NAMES).index(library.settings.sort))
-        self.sort_box.currentIndexChanged.connect(lambda _i: self.set_sort(self.sort_box.currentData()))
-        row.addWidget(self.sort_box)
-        side.addLayout(row)
-        top.addLayout(side, 1)
+        self.genre_button = ui.wide_button("Genre", self._genre_menu, 52, "Show only one kind of book")
+        row.addWidget(self.genre_button)
+        # Just "Sort": with the chosen order in it too, this row wouldn't fit a usual window.
+        self.sort_button = ui.wide_button("Sort", self._sort_menu, 52, "Change the order of the covers")
+        row.addWidget(self.sort_button)
 
         filters = QHBoxLayout()
         self.filter_buttons: dict[str, QPushButton] = {}
@@ -381,6 +397,8 @@ class LibraryPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.addWidget(ui.SideScroll(ui.holder(top)))
+        layout.addWidget(self.continue_label)
+        layout.addWidget(ui.SideScroll(ui.holder(row)))
         layout.addWidget(ui.SideScroll(ui.holder(filters)))
         layout.addWidget(self.grid, 1)
         layout.addWidget(self.empty_message, 1)
@@ -410,6 +428,8 @@ class LibraryPage(QWidget):
         elif key == "author":
             shown.sort(key=lambda es: (not es[0].info.authors, (es[0].info.authors or [""])[0].casefold(),
                                        sort_title(es[0].info.title)))
+        elif key == "genre":
+            shown.sort(key=lambda es: (genres.sort_key(self.genres_of(es[0])[0]), sort_title(es[0].info.title)))
         elif key == "added":
             shown.sort(key=lambda es: -(es[1].added or es[0].added))
         else:
@@ -419,11 +439,13 @@ class LibraryPage(QWidget):
         reselect = None
         for entry, state in shown:
             item = QListWidgetItem(entry.info.title)
+            main_genre = self.genres_of(entry)[0]
             item.setData(Qt.ItemDataRole.UserRole, {
                 "id": entry.id, "title": entry.info.title or "(no title)",
                 "author": ", ".join(entry.info.authors) or "Unknown author",
                 "progress": progress_text(entry, state), "locked": bool(entry.info.lock or entry.info.error),
-                "favorite": state.favorite, "has_cover": self.library.cover(entry.id) is not None})
+                "favorite": state.favorite, "has_cover": self.library.cover(entry.id) is not None,
+                "genre": "" if main_genre in (genres.NO_GENRE, genres.OTHER) else main_genre})
             item.setSizeHint(TILE)
             self.grid.addItem(item)
             if entry.id == keep:
@@ -448,6 +470,8 @@ class LibraryPage(QWidget):
         locked = bool(entry.info.lock or entry.info.error)
         if self.collection:
             return self.collection in state.collections
+        if self.genre:
+            return self.genre in self.genres_of(entry)
         f = self.filter
         if f == "Locked":
             return locked
@@ -466,6 +490,8 @@ class LibraryPage(QWidget):
             return f"No books have “{self.search_box.text().strip()}” in their title or author."
         if self.collection:
             return f"The collection “{self.collection}” is empty."
+        if self.genre:
+            return f"No books are in the genre “{self.genre}”."
         return {"Favorites": "You have no favorites yet. Click a book, then press Favorite.",
                 "Finished": "No books are marked finished yet.",
                 "Reading": "You aren't part-way through any book yet.",
@@ -502,18 +528,57 @@ class LibraryPage(QWidget):
 
     # ---------------------------------------------------------------- choosing
     def set_filter(self, name: str) -> None:
-        self.filter, self.collection = name, ""
+        self.filter, self.collection, self.genre = name, "", ""
         for n, b in self.filter_buttons.items():
             b.setChecked(n == name)
         self.collections_button.setText("Collections ▾")
+        self.genre_button.setText("Genre")
         self.refresh()
 
     def show_collection(self, name: str) -> None:
-        self.collection = name
+        self.collection, self.genre = name, ""
         for b in self.filter_buttons.values():
             b.setChecked(False)
         self.collections_button.setText(f"Collection: {name} ▾")
+        self.genre_button.setText("Genre")
         self.refresh()
+
+    def genres_of(self, entry: lib.LibraryEntry) -> list[str]:
+        """The book's plain genres, its main one first (No genre when it has no tags)."""
+        return genres.genres(entry.info.subjects)
+
+    def show_genre(self, name: str) -> None:
+        """Show only the books of one genre; All (or any other button below) shows every book again."""
+        self.genre, self.collection = name, ""
+        for b in self.filter_buttons.values():
+            b.setChecked(False)
+        self.collections_button.setText("Collections ▾")
+        self.genre_button.setText(f"Genre: {name}")
+        self.refresh()
+
+    def _genre_menu(self) -> None:
+        counts: dict[str, int] = {}
+        for entry in self.library.entries():
+            for genre in self.genres_of(entry):
+                counts[genre] = counts.get(genre, 0) + 1
+        menu = QMenu(self)
+        menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        for genre in sorted(counts, key=genres.sort_key):
+            menu.addAction(f"{genre} ({counts[genre]:,})", lambda g=genre: self.show_genre(g))
+        if not counts:
+            menu.addAction("There are no books yet.").setEnabled(False)
+        self.genre_menu = menu
+        menu.popup(self.genre_button.mapToGlobal(self.genre_button.rect().bottomLeft()))
+
+    def _sort_menu(self) -> None:
+        menu = QMenu(self)
+        menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        for key, name in SORT_NAMES.items():
+            action = menu.addAction(name, lambda k=key: self.set_sort(k))
+            action.setCheckable(True)
+            action.setChecked(key == self.library.settings.sort)
+        self.sort_menu = menu
+        menu.popup(self.sort_button.mapToGlobal(self.sort_button.rect().bottomLeft()))
 
     def collection_names(self) -> list[str]:
         names = set()
@@ -534,9 +599,6 @@ class LibraryPage(QWidget):
     def set_sort(self, key: str) -> None:
         if key in SORT_NAMES:
             self.library.settings.sort = key
-            self.sort_box.blockSignals(True)
-            self.sort_box.setCurrentIndex(list(SORT_NAMES).index(key))
-            self.sort_box.blockSignals(False)
             try:
                 self.library.save_settings()
             except OSError:
@@ -698,6 +760,7 @@ class MainWindow(QMainWindow):
         self.library_page.add_folder_requested.connect(self.add_folder)
         self.library_page.continue_requested.connect(self.continue_reading)
         self.library_page.save_copy_requested.connect(self.save_copy)
+        self.library_page.free_books_requested.connect(self.free_books)
         self.library_page.help_requested.connect(self.show_help)
         self.reading_page.library_requested.connect(self.show_library)
         self.reading_page.full_screen_requested.connect(self._full_screen)
@@ -889,6 +952,26 @@ class MainWindow(QMainWindow):
             finished()
         else:
             self._copy_job = job
+
+    def free_books(self) -> None:
+        """A menu of websites that give books away free without signing up: the one picked opens in
+        the web browser; the last item says how to read what was downloaded."""
+        menu = QMenu(self)
+        menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        for name, shown, url, what in FREE_BOOKS:
+            menu.addAction(f"{name} ({shown}): {what}", lambda u=url: ui.open_url(u))
+        menu.addSeparator()
+        menu.addAction("How to read a book you downloaded", self._free_books_help)
+        self.free_books_menu = menu
+        button = self.library_page.top_buttons["Free books"]
+        menu.popup(button.mapToGlobal(button.rect().bottomLeft()))
+
+    def _free_books_help(self) -> None:
+        ui.inform(self, "Free books",
+                  "When a website asks which kind of file you want, pick EPUB.\n\n"
+                  "To read a book you downloaded, drag it from your Downloads folder onto this window.\n\n"
+                  "Or press Add folder once and pick your Downloads folder: books you download then join "
+                  "the library each time the Book Reader starts.")
 
     def show_help(self) -> None:
         if self.help_window is None:

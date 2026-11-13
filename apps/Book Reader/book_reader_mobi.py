@@ -167,6 +167,7 @@ class MobiFile:
         self.lock: str | None = None
         self.title = ""
         self.authors: list[str] = []
+        self.subjects: list[str] = []
         self.exth: dict[int, list[bytes]] = {}
         self.encoding = "cp1252"
         self.is_kf8 = False
@@ -222,6 +223,7 @@ class MobiFile:
         palm_name = data[:32].split(b"\0", 1)[0].decode("cp1252", "replace")
         self.title = (self._exth_text(503) or header.full_name or palm_name).strip()
         self.authors = [a for a in (self._decode(v).strip() for v in self.exth.get(100, [])) if a]
+        self.subjects = list(dict.fromkeys(s for s in (self._decode(v).strip() for v in self.exth.get(105, [])) if s))
         if header.encryption in (1, 2):
             self.lock = "amazon"
             return

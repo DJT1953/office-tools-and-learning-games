@@ -69,6 +69,7 @@ class BookInfo:
     cover: bytes | None = None
     lock: LockInfo | None = None
     error: str | None = None
+    subjects: list[str] = field(default_factory=list)     # its subject tags, for its genre
 
 
 class BookError(Exception):
@@ -188,6 +189,16 @@ def calibre_metadata(path: str) -> tuple[str, list[str]]:
     authors = [a.strip() for a in root.xpath("//*[local-name()='creator']/text()") if a.strip()]
     authors = [a for a in authors if a.lower() != "unknown"]
     return ("" if looks_like_junk(title) else title), authors
+
+
+def calibre_subjects(path: str) -> list[str]:
+    """Subject tags from a Calibre library's metadata.opf beside the book."""
+    try:
+        with open(os.path.join(os.path.dirname(path), "metadata.opf"), "rb") as f:
+            root = etree.fromstring(f.read(), XML_PARSER)
+    except (OSError, etree.XMLSyntaxError, ValueError):
+        return []
+    return epub_subjects(root) if root is not None else []
 
 
 def headings_toc(book: "Book") -> list[TocEntry]:
@@ -473,6 +484,12 @@ def epub_metadata(root) -> tuple[str, list[str]]:
     return title, [a for a in authors if a and a.lower() != "unknown"]
 
 
+def epub_subjects(root) -> list[str]:
+    """The dc:subject tags of an OPF package (an EPUB's, or Calibre's metadata.opf)."""
+    found = [clean_text("".join(s.itertext())) for s in root.xpath("//*[local-name()='subject']")]
+    return list(dict.fromkeys(s for s in found if s))
+
+
 def epub_manifest(root, base: str) -> dict[str, tuple[str, str, str]]:
     items = {}
     for item in root.xpath("//*[local-name()='manifest']/*[local-name()='item']"):
@@ -627,17 +644,18 @@ def resolve(base: str, href: str) -> str:
 def peek_epub(path: str) -> BookInfo:
     with zipfile.ZipFile(path) as z:
         lock = epub_lock(z)
-        title, authors, cover = "", [], None
+        title, authors, cover, subjects = "", [], None, []
         try:
             _opf, root = epub_package(z)
             title, authors = epub_metadata(root)
+            subjects = epub_subjects(root)
             cover = epub_cover(z, root, epub_manifest(root, posixpath.dirname(_opf)))
         except (BookError, KeyError, etree.XMLSyntaxError, ValueError):
             if not lock:
                 raise
         if lock and looks_like_junk(title):
             title = locked_title(lock)
-        return BookInfo(path, "EPUB", title, authors, cover, lock)
+        return BookInfo(path, "EPUB", title, authors, cover, lock, subjects=subjects)
 
 
 # ---------------------------------------------------------------- Kindle
@@ -918,7 +936,7 @@ def peek(path: str) -> BookInfo:
             kindle = mobi.MobiFile.open(path)
             lock = LockInfo("Amazon", AMAZON_LOCK) if kindle.lock else None
             info = BookInfo(path, "Kindle", kindle.title, kindle.authors,
-                            None if kindle.lock else kindle.cover(), lock)
+                            None if kindle.lock else kindle.cover(), lock, subjects=kindle.subjects)
         elif ext == ".pdf":
             info = peek_pdf(path)
         elif ext == ".txt":
@@ -944,4 +962,6 @@ def peek(path: str) -> BookInfo:
         title, authors = title_from_file_name(path)
         info.title = title
         info.authors = info.authors or authors
+    if not info.subjects:
+        info.subjects = calibre_subjects(path)
     return info

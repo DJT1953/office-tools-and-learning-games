@@ -33,7 +33,7 @@ LINE_SPACINGS = [1.2, 1.5, 1.8, 2.0]
 MARGINS = ["small", "medium", "large"]
 COLOURS = ["white", "sepia", "night"]
 LAYOUTS = ["one", "two", "scroll"]
-SORTS = ["recent", "title", "author", "added"]
+SORTS = ["recent", "title", "author", "genre", "added"]
 HIGHLIGHT_COLOURS = ["yellow", "green", "blue", "pink"]
 
 
@@ -260,7 +260,7 @@ class LibraryEntry:
 
 def info_to_dict(info: BookInfo) -> dict:
     return {"format": info.format, "title": info.title, "authors": info.authors,
-            "lock": asdict(info.lock) if info.lock else None, "error": info.error}
+            "lock": asdict(info.lock) if info.lock else None, "error": info.error, "subjects": info.subjects}
 
 
 def info_from_dict(path: str, data: dict) -> BookInfo:
@@ -271,7 +271,8 @@ def info_from_dict(path: str, data: dict) -> BookInfo:
                              lock.get("free_copy_url") if isinstance(lock.get("free_copy_url"), str) else None)
     return BookInfo(path, _str(data.get("format"), "Book"), _str(data.get("title")),
                     _strings(data.get("authors")), None, lock_info,
-                    data.get("error") if isinstance(data.get("error"), str) else None)
+                    data.get("error") if isinstance(data.get("error"), str) else None,
+                    _strings(data.get("subjects")))
 
 
 class Library:
@@ -343,7 +344,9 @@ class Library:
             except OSError:
                 continue
             row = self._cache.get(key)
-            if not (row and row.get("size") == st.st_size and row.get("mtime") == st.st_mtime):
+            # A book listed by an older Book Reader has no subject tags saved yet: read it once more.
+            if not (row and row.get("size") == st.st_size and row.get("mtime") == st.st_mtime
+                    and "subjects" in row):
                 old = row
                 try:
                     row = self._read_details(path, st, old)

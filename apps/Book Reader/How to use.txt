@@ -10,22 +10,52 @@ web pages (HTM, HTML, MHT). It can't open locked books (see the end).
 THE LIBRARY
 
 The first time, it looks through Documents\My Kindle Content. This can take a
-minute; the line at the bottom counts the books as it goes.
+minute; the line at the bottom counts the books as it goes. The first time
+after an update that reads genres, it looks at every book once more.
 
 - Click a book's cover to pick it. A row of buttons appears at the bottom:
   Open, Favorite, Finished, Collections, Save a copy, Show in folder and
   Remove from library. Double-clicking a cover opens the book too.
 - Continue reading opens the book you read last, where you left off.
-- Add books adds single book files. Add folder adds a whole folder of books.
-- Type in the box at the top to find a book by its title or author.
-- Order: changes the order of the covers (Most recent, Title, Author,
-  Date added).
+- Add books adds single book files. Add folder adds a whole folder of books,
+  including the books in the folders inside it.
+- Under each cover are the book's title, author, how far you have read, and
+  its genre in blue.
+- Type in the box under the buttons to find a book by its title or author.
+- Sort changes the order of the covers: Most recent, Title, Author, Genre or
+  Date added. A tick shows the order in use.
+- Genre shows only one kind of book, such as Mystery and detective, Westerns
+  or Poetry. The number after each genre is how many books it has. A book's
+  genre comes from the subject tags inside its file. Books without any are
+  under No genre; books whose tags don't say what kind of book it is are
+  under Other. Some locked books have no genre.
 - All, Reading, Not started, Finished, Favorites and Locked show only those
-  books. Collections shows one of your own collections.
+  books. Finished shows the books you have read. Collections shows one of
+  your own collections. All shows every book again.
 - To make a collection, pick a book, press Collections, then
   New collection... and type its name.
 - Remove from library only takes the book off the list. The file itself stays
   where it is.
+
+
+FREE BOOKS
+
+Press Free books for websites that give books away free. You don't need to
+sign up on either of them:
+
+- Project Gutenberg (https://www.gutenberg.org/): tens of thousands of free
+  classic books.
+- Standard Ebooks (https://standardebooks.org/ebooks): free classics,
+  carefully edited.
+
+Pick one and it opens in your web browser. When the website asks which kind
+of file you want, pick EPUB.
+
+To read a book you downloaded, drag it from your Downloads folder onto the
+Book Reader window. Or press Add folder once and pick your Downloads folder:
+books you download then join the library each time the Book Reader starts.
+The last line of the Free books menu, How to read a book you downloaded,
+says this too.
 
 
 READING
