@@ -78,9 +78,15 @@ Buttons at the top:
   mark off.
 - Notes: your bookmarks and highlights, with your notes. Click one to go
   there. Save notes to a file writes them into a text file.
-- Text: text size (Smaller / Bigger), font, colours (White, Sepia, Night),
-  One page, Two pages side by side, or Scroll, Space between lines (Close,
-  Normal, Wide), Margins, and Straight right-hand edge.
+- Text: text size (Smaller / Bigger), font, colours, Light, One page, Two
+  pages side by side, or Scroll, Space between lines (Close, Normal, Wide),
+  Margins, and Straight right-hand edge.
+  Colours: White, Sepia (warm paper), Grey, Green, Night (light words on a
+  dark page) and Amber night (warm orange words on a dark page, with no
+  bright white or blue light, for reading at night).
+  Light: Darker dims the page a little at a time, down to 30%, for reading in
+  a dark room; Brighter turns it back up to 100%. The buttons and the rest of
+  the window stay as they are. Your colours and light are kept for next time.
 - Read aloud: reads the book out loud with a Windows voice and turns the pages
   by itself. While it reads, a bar has Pause (then Go on), Stop, Slower,
   Faster and Voice. Press Read aloud (now called Stop reading) again to stop.
@@ -108,9 +114,9 @@ PDFs
 
 PDF pages are fixed, so their words can't be made bigger or recoloured, and
 words can't be highlighted. Instead there are buttons under the page: Zoom out,
-Zoom in, Fit width, Whole page and Continuous pages. Bookmarks, Contents (when
-the PDF has them), Search and Read aloud work. A PDF that needs a password asks
-for it.
+Zoom in, Fit width, Whole page, Continuous pages, and Darker and Brighter to
+dim the page or turn it back up. Bookmarks, Contents (when the PDF has them),
+Search and Read aloud work. A PDF that needs a password asks for it.
 
 
 LOCKED BOOKS

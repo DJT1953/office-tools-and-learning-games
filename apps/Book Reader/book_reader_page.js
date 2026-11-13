@@ -34,7 +34,11 @@
   const COLOURS = {
     white: { bg: "#ffffff", fg: "#000000", link: "#0645ad", select: "#90caf9" },
     sepia: { bg: "#f4ecd8", fg: "#000000", link: "#0645ad", select: "#90caf9" },
-    night: { bg: "#121212", fg: "#e8e8e8", link: "#8ab4f8", select: "#3d5afe" },
+    grey: { bg: "#e0e0e0", fg: "#000000", link: "#0645ad", select: "#90caf9" },
+    green: { bg: "#dcedc8", fg: "#000000", link: "#0645ad", select: "#90caf9" },
+    night: { bg: "#121212", fg: "#e8e8e8", link: "#8ab4f8", select: "#3d5afe", dark: true },
+    // warm letters on black: no bright white or blue light at night
+    amber: { bg: "#121212", fg: "#ffb74d", link: "#ffd180", select: "#6d4c41", dark: true },
   };
   let style = { font: "Georgia", size: 22, line: 1.5, margin: 44, colours: "white", layout: "one", justify: true };
   let page = 0;
@@ -525,7 +529,7 @@
   let found = -1;
 
   I.addCss(function (c) {
-    const night = c.bg === "#121212";
+    const night = !!c.dark;
     const set = night ? NIGHT : DAY;
     return KINDS.map((k) => `::highlight(br-${k}) { background-color: ${set[k]}; color: ${c.fg}; }`).join("\n")
       + "\n::highlight(br-find) { background-color: #ff9800; color: #000000; }"

@@ -31,7 +31,8 @@ FONTS = ["Georgia", "Times New Roman", "Palatino Linotype", "Cambria", "Verdana"
          "Segoe UI", "Calibri", "The book's own"]
 LINE_SPACINGS = [1.2, 1.5, 1.8, 2.0]
 MARGINS = ["small", "medium", "large"]
-COLOURS = ["white", "sepia", "night"]
+COLOURS = ["white", "sepia", "grey", "green", "night", "amber"]
+DIMMEST = 30                      # the Light setting goes from 100% (no dimming) down to this
 LAYOUTS = ["one", "two", "scroll"]
 SORTS = ["recent", "title", "author", "genre", "added"]
 HIGHLIGHT_COLOURS = ["yellow", "green", "blue", "pink"]
@@ -129,6 +130,7 @@ class Settings:
     colours: str = "white"
     layout: str = "one"
     justify: bool = True
+    brightness: int = 100         # percent: below 100 a dark see-through sheet dims the page
     sort: str = "recent"
     voice: str = ""
     speech_rate: float = 0.0
@@ -151,6 +153,7 @@ class Settings:
         s.colours = _str(data.get("colours"), "white", COLOURS)
         s.layout = _str(data.get("layout"), "one", LAYOUTS)
         s.justify = _bool(data.get("justify"), True)
+        s.brightness = _int(data.get("brightness"), 100, DIMMEST, 100)
         s.sort = _str(data.get("sort"), "recent", SORTS)
         s.voice = _str(data.get("voice"))
         s.speech_rate = _float(data.get("speech_rate"), 0.0, -1.0, 1.0)

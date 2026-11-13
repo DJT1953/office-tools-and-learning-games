@@ -16,7 +16,7 @@ import uuid
 from typing import NamedTuple
 
 from PySide6.QtCore import QEventLoop, QObject, Qt, Signal
-from PySide6.QtGui import QFont, QKeySequence, QPixmap, QShortcut
+from PySide6.QtGui import QColor, QFont, QKeySequence, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -47,8 +47,12 @@ from book_reader_pdf import PdfView
 from book_reader_view import ReaderView
 
 PDF_TEXT_NOTE = ("A PDF's pages are fixed, so its words can't be made bigger or reco"
-                 'loured here. Use Zoom in and Zoom out, under the page, to make them bigger.')
+                 'loured here. Use Zoom in and Zoom out, under the page, to make them bigger, '
+                 'and Darker and Brighter to dim the page.')
 COLOUR_BUTTONS = {"Yellow": "#fff176", "Green": "#b9f6ca", "Blue": "#b3e5fc", "Pink": "#f8bbd0"}
+# Page colours: button word -> saved name (book_reader_page.js has the colours themselves).
+BACKGROUNDS = {"White": "white", "Sepia": "sepia", "Grey": "grey", "Green": "green", "Night": "night",
+               "Amber night": "amber"}
 
 
 class SearchHit(NamedTuple):
@@ -196,12 +200,12 @@ class SidePanel(QFrame):
 
         def buttons(names: list[str], slot) -> None:
             nonlocal row
-            for col, name in enumerate(names):
+            for i, name in enumerate(names):          # three to a row
                 b = ui.wide_button(name, lambda _checked=False, n=name: slot(n), 52)
                 b.setCheckable(True)
                 self.text_buttons[name] = b
-                grid.addWidget(b, row, col)
-            row += 1
+                grid.addWidget(b, row + i // 3, i % 3)
+            row += (len(names) + 2) // 3
 
         label("Text size")
         size_row = QHBoxLayout()
@@ -223,7 +227,21 @@ class SidePanel(QFrame):
         grid.addWidget(self.font_box, row, 0, 1, 3)
         row += 1
         label("Colours")
-        buttons(["White", "Sepia", "Night"], self.change_colours)
+        buttons(list(BACKGROUNDS), self.change_colours)
+        label("Light")
+        light_row = QHBoxLayout()
+        for name, tip in (("Darker", "Dim the page, for reading in a dark room"),
+                          ("Brighter", "Make the page brighter again")):
+            b = ui.wide_button(name, lambda _c=False, n=name: self.change_light(n), 56, tip)
+            self.text_buttons[name] = b
+            light_row.addWidget(b)
+        self.light_label = QLabel("")
+        self.light_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        light_row.insertWidget(1, self.light_label)
+        holder = QWidget()
+        holder.setLayout(light_row)
+        grid.addWidget(holder, row, 0, 1, 3)
+        row += 1
         label("Pages")
         buttons(["One page", "Two pages", "Scroll"], self.change_layout)
         label("Space between lines")
@@ -380,8 +398,9 @@ class SidePanel(QFrame):
         self.font_box.blockSignals(True)
         self.font_box.setCurrentText(s.font)
         self.font_box.blockSignals(False)
-        picks = {"White": s.colours == "white", "Sepia": s.colours == "sepia", "Night": s.colours == "night",
-                 "One page": s.layout == "one", "Two pages": s.layout == "two", "Scroll": s.layout == "scroll",
+        self.light_label.setText(f"  {s.brightness}%  ")
+        picks = {name: s.colours == key for name, key in BACKGROUNDS.items()}
+        picks |= {"One page": s.layout == "one", "Two pages": s.layout == "two", "Scroll": s.layout == "scroll",
                  "Close": s.line_spacing <= 1.3, "Normal": 1.3 < s.line_spacing <= 1.65,
                  "Wide": s.line_spacing > 1.65,
                  "Small margins": s.margins == "small", "Medium margins": s.margins == "medium",
@@ -407,7 +426,13 @@ class SidePanel(QFrame):
             self._changed()
 
     def change_colours(self, name: str) -> None:
-        self.settings.colours = name.lower()
+        self.settings.colours = BACKGROUNDS[name]
+        self._changed()
+
+    def change_light(self, name: str) -> None:
+        """Darker or Brighter: the page's light in steps of 10%, from 100% down to lib.DIMMEST."""
+        step = 10 if name == "Brighter" else -10
+        self.settings.brightness = max(lib.DIMMEST, min(100, self.settings.brightness + step))
         self._changed()
 
     def change_layout(self, name: str) -> None:
@@ -530,7 +555,9 @@ class PdfBar(ui.Bar):
         for name, slot in (("Zoom out", lambda: page.pdf.zoom_by(1 / 1.25)),
                            ("Zoom in", lambda: page.pdf.zoom_by(1.25)),
                            ("Fit width", page.pdf.fit_width), ("Whole page", page.pdf.fit_page),
-                           ("Continuous pages", self.toggle_continuous)):
+                           ("Continuous pages", self.toggle_continuous),
+                           ("Darker", lambda: page.panel.change_light("Darker")),
+                           ("Brighter", lambda: page.panel.change_light("Brighter"))):
             b = ui.wide_button(name, slot, 52)
             self.buttons[name] = b
             row.addWidget(b)
@@ -540,6 +567,30 @@ class PdfBar(ui.Bar):
 
     def toggle_continuous(self) -> None:
         self.page.pdf.set_continuous(self.buttons["Continuous pages"].isChecked())
+
+
+class Dimmer(QWidget):
+    """A see-through dark sheet over the page for the Light setting (Darker / Brighter). It takes no
+    clicks, so picking words, turning pages and scrolling all work through it."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.level = 100
+        self.hide()
+
+    def set_level(self, percent: int) -> None:
+        self.level = percent
+        self.setVisible(percent < 100)
+        self.raise_()
+        self.update()
+
+    def shade(self) -> QColor:
+        return QColor(0, 0, 0, round(255 * (100 - self.level) / 100))
+
+    def paintEvent(self, _event) -> None:  # noqa: N802
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), self.shade())
 
 
 class PictureWindow(QDialog):
@@ -659,9 +710,17 @@ class ReadingPage(QWidget):
         self.panel.search_requested.connect(self._search)
         self.panel.save_notes_requested.connect(self.save_notes)
         self.panel.text_changed.connect(self._text_changed)
+        # The page and the Light setting's dimmer share one spot, the dimmer on top.
+        self.dimmer = Dimmer()
+        page_area = QWidget()
+        area = QGridLayout(page_area)
+        area.setContentsMargins(0, 0, 0, 0)
+        area.addWidget(self.views, 0, 0)
+        area.addWidget(self.dimmer, 0, 0)
+        self.dimmer.set_level(self.settings.brightness)
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.addWidget(self.panel)
-        self.splitter.addWidget(self.views)
+        self.splitter.addWidget(page_area)
         self.splitter.setStretchFactor(0, 0)
         self.splitter.setStretchFactor(1, 1)
         self.splitter.setChildrenCollapsible(False)
@@ -989,6 +1048,7 @@ class ReadingPage(QWidget):
 
     def _text_changed(self) -> None:
         self._save_settings()
+        self.dimmer.set_level(self.settings.brightness)
         self.current.apply_settings(self.settings)
 
     def save_notes(self) -> None:
