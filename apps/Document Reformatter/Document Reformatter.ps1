@@ -289,7 +289,7 @@ namespace DocReformatter
 $SettingsFile = Join-Path $env:APPDATA 'Document Reformatter\settings.json'
 $Defaults = @{ FontName = 'Calibri'; FontSize = 12; Headings = 'Keep'; LineSpacing = 'Leave'; SpaceBetween = 'Leave'
                Indent = 'Leave'; Align = 'Leave'; TextColour = 'Leave'; RemoveHighlight = $false; ClearEmphasis = $false
-               EvenSpacing = $false; RemoveEmptyLines = $false; WidowControl = $false; RemoveLinks = $true; SplitParagraphs = $true
+               EvenSpacing = $false; RemoveEmptyLines = $false; WidowControl = $false; RemoveLinks = $true; SplitParagraphs = $true; JoinLines = $false
                PaperSize = 'Leave'; Margins = 'Leave'; LastFolder = '' }
 
 function Get-SavedSettings {
@@ -587,6 +587,8 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
     $first = New-Heading 'Clean up'
     $first.Margin = New-Object System.Windows.Forms.Padding(3, 10, 3, 3)
     Add-Row $right $first -Wide
+    $joinBox = New-Tick "Join lines that break at every line end`n(one break becomes a space; two in a row end the paragraph)" ([bool]$Last.JoinLines)
+    Add-Row $right $joinBox -Wide
     $splitBox = New-Tick "Split giant paragraphs into proper paragraphs`n(for text whose line breaks were lost, such as copied from a web page)" ([bool]$Last.SplitParagraphs)
     Add-Row $right $splitBox -Wide
     $highlightBox = New-Tick 'Remove highlighting and shading behind words' ([bool]$Last.RemoveHighlight)
@@ -683,7 +685,7 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
                        Indent = (Get-ChoiceKey $indentBox); Align = (Get-ChoiceKey $alignBox); TextColour = (Get-ChoiceKey $colourBox)
                        RemoveHighlight = $highlightBox.Checked; ClearEmphasis = $emphasisBox.Checked; EvenSpacing = $spacingBox.Checked
                        RemoveEmptyLines = $emptyBox.Checked; WidowControl = $widowBox.Checked; RemoveLinks = $linkBox.Checked
-                       SplitParagraphs = $splitBox.Checked
+                       SplitParagraphs = $splitBox.Checked; JoinLines = $joinBox.Checked
                        PaperSize = (Get-ChoiceKey $paperBox); Margins = (Get-ChoiceKey $marginBox) }
         $form.DialogResult = 'OK'
     })

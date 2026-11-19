@@ -302,7 +302,7 @@ function Convert-OneDocument {
     param($Word, [string]$Path, [string]$OutPath, [hashtable]$S, [string]$LibreOffice, [scriptblock]$OnTick)
     $notes = New-Object System.Collections.ArrayList
     $isText = ([IO.Path]::GetExtension($Path) -ieq '.txt')
-    $stats = @{ EmptyLines = 0; Breaks = 0 }
+    $stats = @{ EmptyLines = 0; Breaks = 0; Joined = 0 }
     $doc = $null
     $openPath = $Path
     if ($isText) { $openPath = Get-WordReadyText $Path }
@@ -322,6 +322,7 @@ function Convert-OneDocument {
         try {
             $links = 0
             if ($S.RemoveLinks) { $links = Remove-Hyperlinks $doc }
+            if ($S.JoinLines) { $stats.Joined = (Join-BrokenLines $doc.Content $OnTick).Joined }
             if ($S.SplitParagraphs) { $stats.Breaks = Split-RunTogether $doc.Content $OnTick }
             Set-DocumentFormatting $doc $S $stats $OnTick
         } catch { throw ('EDIT:' + (Get-InnerMessage $_.Exception)) }
@@ -334,6 +335,8 @@ function Convert-OneDocument {
         elseif ($links -eq 1) { [void]$notes.Add('1 link removed') }
         else { [void]$notes.Add("$links links removed") }
     }
+    if ($stats.Joined -eq 1) { [void]$notes.Add('lines joined: 1 line break made a space') }
+    elseif ($stats.Joined -gt 1) { [void]$notes.Add("lines joined: $($stats.Joined) line breaks made spaces") }
     if ($stats.Breaks -eq 1) { [void]$notes.Add('1 paragraph break added where the text ran together') }
     elseif ($stats.Breaks -gt 1) { [void]$notes.Add("$($stats.Breaks) paragraph breaks added where the text ran together") }
     if ($stats.EmptyLines -eq 1) { [void]$notes.Add('1 empty line removed') }
@@ -401,6 +404,211 @@ function Remove-Hyperlinks($Doc) {
 function Clear-LinkLook($Range) {
     if ($null -eq $Range) { return }
     try { $Range.Font.Underline = 0; $Range.Font.Color = $script:WdColorAutomatic } catch {}
+}
+
+
+# ---------------------------------------------------------------- lines broken at every line end
+
+# Some documents (e-mails, old text files, scans) have a break at the end of
+# every line: a paragraph break or a line break, maybe with a space before it.
+# One break becomes a space, so the lines run on as normal text; two or more in
+# a row become one paragraph end. Only documents where most lines stop in the
+# middle of a sentence are changed, so normal documents are left alone.
+# A document with no double breaks at all gets a paragraph end after a short
+# line that finishes a sentence, so it doesn't turn into one giant paragraph.
+# The next line's first word adds weight: a small letter means the sentence
+# goes on (as after "etc."), so the lines join; a capital on an ordinary word
+# (one that also appears in small letters, unlike a name) or an opening quote
+# means a new paragraph is likely even after a line that is only a bit short.
+$script:WrappedShortest = 40     # characters; a line cut off by wrapping is at least this long...
+$script:WrappedLongest  = 120    # ...and no longer than this
+$script:BrokenShare     = 0.5    # this share of the single breaks must cut a sentence...
+$script:BrokenLeast     = 5      # ...and at least this many
+$script:ShortLineShare  = 0.75   # a line shorter than this share of the usual length is short...
+$script:FairlyShortShare = 0.9   # ...or this, when the next line clearly starts a new sentence
+$script:SentenceEnders  = '.!?:;)]"''' + [char]0x201D + [char]0x2019 + [char]0x2026
+$script:LineSpaces      = " `t" + [char]0xA0
+# One break: a paragraph end, a line break, or (in plain text files) a paragraph end with a line feed
+$script:OneBreak        = '(?:\r\n?|\n|\v)'
+$script:LineBreakRun    = '[ \t\xA0]*(?:' + $script:OneBreak + '[ \t\xA0]*)+'
+$script:BlankLine       = $script:OneBreak + '[ \t\xA0]*' + $script:OneBreak
+
+# The usual length of a line cut off by wrapping, or 0 when the text doesn't
+# look broken at every line end. $Text is the text as Word gives it.
+function Get-WrappedLineLength([string]$Text) {
+    $lines = $Text -split $script:OneBreak
+    $singles = 0
+    $wrapped = New-Object System.Collections.Generic.List[int]
+    for ($i = 0; $i -lt $lines.Count - 1; $i++) {
+        $line = $lines[$i].Trim($script:LineSpaces.ToCharArray())
+        if (-not $line -or -not $lines[$i + 1].Trim($script:LineSpaces.ToCharArray())) { continue }
+        $singles++   # a filled line followed by one break, then another filled line
+        if ($line.Length -lt $script:WrappedShortest -or $line.Length -gt $script:WrappedLongest) { continue }
+        if ($script:SentenceEnders.IndexOf($line[$line.Length - 1]) -ge 0) { continue }
+        $wrapped.Add($line.Length)
+    }
+    if ($wrapped.Count -lt $script:BrokenLeast -or $wrapped.Count -lt $script:BrokenShare * $singles) { return 0 }
+    $sorted = @($wrapped | Sort-Object)
+    return $sorted[[int][Math]::Floor($sorted.Count / 2)]
+}
+
+# Every word that appears somewhere in small letters ("the", "she"). A capitalised
+# word that isn't in this list is probably a name.
+function Get-OrdinaryWords([string]$Text) {
+    $words = New-Object 'System.Collections.Generic.HashSet[string]'
+    foreach ($m in [regex]::Matches($Text, '\b\p{Ll}[\p{Ll}''' + [char]0x2019 + ']*\b')) { [void]$words.Add($m.Value) }
+    return ,$words
+}
+
+# Does the text (the start of a line) clearly begin a new sentence? 'yes' for
+# an opening quote or a capital on an ordinary word, 'no' for a small letter,
+# 'maybe' for anything else (such as a name or a number).
+function Get-SentenceStart([string]$Text, $OrdinaryWords) {
+    $m = [regex]::Match($Text, '^([' + $script:OpeningQuotes + ']?)(\w[\w''' + [char]0x2019 + ']*)?')
+    if ($m.Groups[1].Length) { return 'yes' }
+    $word = $m.Groups[2].Value
+    if (-not $word) { return 'maybe' }
+    if ([char]::IsLower($word[0])) { return 'no' }
+    # "I" is never written small, so it says nothing either way
+    if ([char]::IsUpper($word[0]) -and $word -cne 'I' -and $OrdinaryWords.Contains($word.ToLowerInvariant())) { return 'yes' }
+    return 'maybe'
+}
+
+# The changes for one stretch of ordinary paragraphs: a list of @{ From; To; With }
+# (places in Text, and what replaces them). The stretch's own last paragraph
+# end stays. $Width is the usual wrapped line length; $OrdinaryWords comes
+# from Get-OrdinaryWords (for the whole document, when there is more than one stretch).
+function Get-LineJoins([string]$Text, [int]$Width, [bool]$NoBlankLines, $OrdinaryWords = $null) {
+    $edits = New-Object System.Collections.ArrayList
+    if ($Text.Length -lt 2) { return ,$edits }
+    if ($NoBlankLines -and $null -eq $OrdinaryWords) { $OrdinaryWords = Get-OrdinaryWords $Text }
+    $search = $Text.Substring(0, $Text.Length - 1)
+    if ($Text.EndsWith("`r`n")) { $search = $Text.Substring(0, $Text.Length - 2) }
+    $lineStart = 0
+    foreach ($m in [regex]::Matches($search, $script:LineBreakRun)) {
+        $from = $m.Index; $to = $m.Index + $m.Length
+        $line = $search.Substring($lineStart, $from - $lineStart)
+        $lineStart = $to
+        # Page and section breaks, columns, pictures and fields stay as they are
+        $before = if ($from -gt 0) { [int]$Text[$from - 1] } else { 0 }
+        if (@(1, 12, 14, 19, 20, 21) -contains $before -or @(1, 12, 14, 19, 20, 21) -contains [int]$Text[$to]) { continue }
+        $breaks = [regex]::Matches($m.Value, $script:OneBreak).Count
+        # A tab or two or more spaces after the last break are an indent: the next line
+        # starts a paragraph. (A single stray space is not an indent.)
+        $lastBreak = [Math]::Max([Math]::Max($m.Value.LastIndexOf("`r"), $m.Value.LastIndexOf("`n")), $m.Value.LastIndexOf("`v"))
+        $indent = $m.Value.Length - $lastBreak - 1
+        if ($indent -lt 2 -and $m.Value.IndexOf("`t", $lastBreak) -lt 0) { $indent = 0 }
+        if ($to -lt $search.Length -and $indent -gt 0) {
+            if ($breaks -eq 1 -and $m.Value[$lastBreak] -ne "`v") { continue }   # a paragraph break and an indent stay as they are
+            $to -= $indent                                                         # the indent stays
+        }
+        $value = $search.Substring($from, $to - $from)
+        if ($from -eq 0 -or $to -eq $search.Length) { $with = '' }          # blank lines at the start or end
+        elseif ($breaks -ge 2 -or $indent -gt 0) { $with = "`r" }
+        else {
+            $with = ' '
+            $trimmed = $line.Trim($script:LineSpaces.ToCharArray())
+            if ($NoBlankLines -and $trimmed -and $script:SentenceEnders.IndexOf($trimmed[$trimmed.Length - 1]) -ge 0) {
+                $next = Get-SentenceStart $search.Substring($to, [Math]::Min(60, $search.Length - $to)) $OrdinaryWords
+                $share = $script:ShortLineShare
+                if ($next -eq 'yes') { $share = $script:FairlyShortShare }
+                if ($next -ne 'no' -and $trimmed.Length -lt $share * $Width) { $with = "`r" }
+            }
+        }
+        if ($value -ceq $with) { continue }   # already just right
+        [void]$edits.Add(@{ From = $from; To = $to; With = $with; Breaks = $breaks })
+    }
+    return ,$edits
+}
+
+# Joins the lines of the main text; returns @{ Joined = <breaks made spaces>; Ends = <paragraph ends kept> }
+function Join-BrokenLines($Story, [scriptblock]$OnTick) {
+    $result = @{ Joined = 0; Ends = 0 }
+    $storyText = [string]$Story.Text
+    $width = Get-WrappedLineLength $storyText
+    if ($width -eq 0) { return $result }   # doesn't look broken at every line: leave it alone
+    $noBlankLines = ($storyText -notmatch $script:BlankLine)
+    $ordinaryWords = $null
+    if ($noBlankLines) { $ordinaryWords = Get-OrdinaryWords $storyText }
+
+    # Headings, Title and Subtitle, lists and tables keep their own lines
+    $titleNames = @{}
+    foreach ($id in -63, -75) { try { $titleNames[[string]$Story.Document.Styles.Item($id).NameLocal] = $true } catch {} }
+    $hasTables = ($Story.Tables.Count -gt 0)
+    $blocks = New-Object System.Collections.ArrayList
+    $blockStart = -1; $blockEnd = -1; $n = 0
+    $lastIndent = 0
+    foreach ($p in $Story.Paragraphs) {
+        $n++
+        if ($OnTick -and ($n % 25) -eq 0) { & $OnTick }
+        $r = $p.Range
+        $plain = ($p.OutlineLevel -ge $script:WdOutlineBodyText -and $r.ListFormat.ListType -eq 0)
+        if ($plain) { try { $plain = -not $titleNames.ContainsKey([string]$p.Style.NameLocal) } catch {} }
+        if ($plain -and $hasTables) { $plain = -not $r.Information($script:WdWithInTable) }
+        # A paragraph that Word indents more than the line before starts a new paragraph:
+        # the break before it stays as it is
+        $indent = 0.0
+        try { $indent = [double]$p.FirstLineIndent } catch {}
+        if ($plain -and $blockStart -ge 0 -and $indent -gt 0 -and $indent -gt $lastIndent) {
+            [void]$blocks.Add(@($blockStart, $blockEnd)); $blockStart = -1
+        }
+        $lastIndent = $indent
+        if ($plain) {
+            if ($blockStart -lt 0) { $blockStart = $r.Start }
+            $blockEnd = $r.End
+        } elseif ($blockStart -ge 0) {
+            [void]$blocks.Add(@($blockStart, $blockEnd)); $blockStart = -1
+        }
+    }
+    if ($blockStart -ge 0) { [void]$blocks.Add(@($blockStart, $blockEnd)) }
+
+    # From the end backwards, so the places noted for earlier text stay right
+    for ($i = $blocks.Count - 1; $i -ge 0; $i--) {
+        $block = $Story.Duplicate
+        $block.SetRange($blocks[$i][0], $blocks[$i][1])
+        $text = [string]$block.Text
+        $edits = Get-LineJoins $text $width $noBlankLines $ordinaryWords
+        $limit = $text.Length
+        for ($j = $edits.Count - 1; $j -ge 0; $j--) {
+            if ($OnTick -and ($j % 25) -eq 0) { & $OnTick }
+            $e = $edits[$j]
+            if (Set-TextAt $block $text $e.From $e.To $e.With $limit) {
+                if ($e.With -eq ' ') { $result.Joined++ } elseif ($e.With -eq "`r") { $result.Ends++ }
+            }
+            $limit = $e.From   # text after this point may have changed
+        }
+    }
+    return $result
+}
+
+# Replaces From..To (places in Text) with With: a space, a paragraph end, or
+# nothing. The spot is checked first (up to Limit, where the text has already
+# been changed); a spot that doesn't match is left alone.
+function Set-TextAt($Block, [string]$Text, [int]$From, [int]$To, [string]$With, [int]$Limit) {
+    $a = [Math]::Max(0, $From - 4)
+    $z = [Math]::Min($Limit, $To + 4)
+    $check = $Block.Duplicate
+    $check.SetRange($Block.Start + $a, $Block.Start + $z)
+    if ([string]$check.Text -cne $Text.Substring($a, $z - $a)) { return $false }
+    $spot = $Block.Duplicate
+    $spot.SetRange($Block.Start + $From, $Block.Start + $To)
+    # Joining two Word paragraphs keeps the second one's look, so it gets the
+    # first one's look (such as its first-line indent) beforehand. (Not for
+    # blank lines at the very start, where the first one is an empty line.)
+    if ($With -ne "`r" -and $From -gt 0 -and $Text.Substring($From, $To - $From).Contains("`r")) {
+        try {
+            $first = $Block.Duplicate; $first.SetRange($Block.Start + $From, $Block.Start + $From)
+            $second = $Block.Duplicate; $second.SetRange($Block.Start + $To, $Block.Start + $To)
+            $second.Paragraphs.First.Format = $first.Paragraphs.First.Format
+        } catch {}
+    }
+    # Word refuses some changes, such as removing the very last paragraph end: those stay
+    try {
+        if ($With -eq "`r") { $spot.InsertParagraph() }
+        elseif ($With) { $spot.Text = $With }
+        else { [void]$spot.Delete() }
+    } catch { return $false }
+    return $true
 }
 
 
@@ -494,7 +702,7 @@ function Get-ParagraphBreaks([string]$Text) {
             }
         }
         while ($k -lt $gaps.Count -and $gaps[$k].From -le $stop.From) { $k++ }
-        if (-not $stop.Last) { [void]$all.Add(@($stop.From, $stop.To)) }
+        if (-not $stop.ContainsKey('Last')) { [void]$all.Add(@($stop.From, $stop.To)) }
         $pieceStart = $stop.To
     }
     return ,@($all | Sort-Object { $_[0] })
@@ -508,7 +716,7 @@ function Split-ParagraphAt($Para, [string]$Text, [int]$From, [int]$To) {
     $z = [Math]::Min($Text.Length, $To + 4)
     $check = $Para.Duplicate
     $check.SetRange($Para.Start + $a, $Para.Start + $z)
-    if ([string]$check.Text -ne $Text.Substring($a, $z - $a)) { return $false }
+    if ([string]$check.Text -cne $Text.Substring($a, $z - $a)) { return $false }
     $gap = $Para.Duplicate
     $gap.SetRange($Para.Start + $From, $Para.Start + $To)
     $gap.InsertParagraph()

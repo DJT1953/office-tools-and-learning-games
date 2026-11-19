@@ -23,6 +23,20 @@ START IT
      indent, alignment and text color. "Leave as it is in each file"
      changes nothing.
    Right side, "Clean up" (tick the ones you want):
+   - Join lines that break at every line end: for documents (e-mails, old
+     text files, scans) with a break at the end of every line. A single
+     break (a paragraph break or a line break, with or without a space
+     before it) becomes a space, so the lines run on. Two or more breaks in
+     a row become one paragraph end. A paragraph break followed by an
+     indented line stays as it is, and so does a paragraph Word indents.
+     Only files where most lines stop in the middle of a sentence are
+     changed: normal files in the same folder are left alone, and the
+     summary says which files had their lines joined. Headings, lists and
+     tables keep their own lines. In a file with no blank lines at all, a
+     short line that ends a sentence ends the paragraph. A capital letter
+     on an ordinary word at the start of the next line makes that more
+     likely (names don't count); a small letter there means the sentence
+     goes on, so the lines are joined.
    - Split giant paragraphs into proper paragraphs: for text whose line
      breaks were lost (often copied from a web page), so a whole story is
      one huge paragraph. It breaks the paragraph where a sentence ends with
