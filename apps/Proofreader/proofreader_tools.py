@@ -5,7 +5,10 @@ The free checker behind the Proofreader: LanguageTool, a program that runs on
 this computer only. It needs Java 17, so the first run downloads LanguageTool
 and its own private copy of Java into
 
-    %LOCALAPPDATA%\\Proofreader\\tools      (about 700 MB once unpacked)
+    %LOCALAPPDATA%\\Proofreader\\tools      (about 520 MB once unpacked)
+
+The installed Proofreader.exe brings its own copy in tools\\ beside it, so it
+never needs the download.
 
 Nothing is installed into Windows and no document text leaves the computer:
 the checker listens on 127.0.0.1 only and is stopped when the app closes.
@@ -21,6 +24,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -56,10 +60,22 @@ def checker_memory(gb=None):
     return "1g"
 
 
+def bundled_folder(frozen=None, exe=None):
+    """Where Setup.exe puts the checker: tools\\ beside Proofreader.exe. None when
+    running as a .py file, which uses the downloaded copy instead."""
+    frozen = getattr(sys, "frozen", False) if frozen is None else frozen
+    if not frozen:
+        return None
+    return os.path.join(os.path.dirname(exe or sys.executable), "tools")
+
+
 def tools_folder():
     override = os.environ.get("PROOFREADER_TOOLS")
     if override:
         return override
+    bundled = bundled_folder()
+    if bundled and installed(bundled):
+        return bundled
     base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
     return os.path.join(base, "Proofreader", "tools")
 

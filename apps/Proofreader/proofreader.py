@@ -43,8 +43,16 @@ def show_crash(kind, value, tb):
         print(text)
 
 
+def missing_add_ons(frozen=None):
+    """The pip names of add-ons still to install. None when installed by Setup.exe
+    (frozen), which brings every add-on inside it and has no pip."""
+    if getattr(sys, "frozen", False) if frozen is None else frozen:
+        return []
+    return [pip for module, pip in NEEDS.items() if importlib.util.find_spec(module) is None]
+
+
 def install_missing():
-    missing = [pip for module, pip in NEEDS.items() if importlib.util.find_spec(module) is None]
+    missing = missing_add_ons()
     if not missing:
         return
     if not tk_message("askyesno", f"This copy of Python still needs: {', '.join(missing)}.\n\n"
@@ -697,7 +705,64 @@ def black_words(app):
     app.setPalette(palette)
 
 
+SELF_TEST = (     # (file, text in, text the corrected copy must hold)
+    ("sample.txt", "i dont know what teh problem is.", "I don't know what the problem is."),
+    ("sample.docx", "We will recieve it on monday.", "We will receive it on Monday."),
+)
+
+
+def self_test(folder, checker=None):
+    """Proofreads a small .txt and .docx with the free checker and no Word, and
+    checks the corrected copies. Writes self-test.txt in folder; returns 0 when
+    every check passed. Run as:  Proofreader.exe --selftest <folder>"""
+    from docx import Document
+    os.makedirs(folder, exist_ok=True)
+    lines = [f"Checker folder: {tools.tools_folder()}", f"Checker ready: {tools.installed()}"]
+    passed = True
+    try:
+        files = []
+        for name, text, _ in SELF_TEST:
+            path = os.path.join(folder, name)
+            if name.endswith(".docx"):
+                doc = Document()
+                doc.add_paragraph(text)
+                doc.save(path)
+            else:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text + "\n")
+            files.append(path)
+        own = checker is None
+        checker = checker or tools.LanguageTool().start()
+        try:
+            results = job.run(files, job.Settings(use_word=False), checker)
+        finally:
+            if own:
+                checker.stop()
+        for (name, _, wanted), result in zip(SELF_TEST, results):
+            if not result.output:
+                got = result.error or "no corrected copy was saved"
+            elif name.endswith(".docx"):
+                got = "\n".join(p.text for p in Document(result.output).paragraphs).strip()
+            else:
+                with open(result.output, encoding="utf-8") as f:
+                    got = f.read().strip()
+            ok = got == wanted
+            passed = passed and ok
+            lines.append(f"{'PASS' if ok else 'FAIL'} {name}: {got!r}")
+        passed = passed and len(results) == len(SELF_TEST)
+    except Exception as error:
+        passed = False
+        lines.append(f"FAIL: {type(error).__name__}: {error}")
+    lines.append("ALL PASSED" if passed else "SOME FAILED")
+    with open(os.path.join(folder, "self-test.txt"), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    return 0 if passed else 1
+
+
 def main():
+    if sys.argv[1:2] == ["--selftest"]:
+        sys.exit(self_test(sys.argv[2] if len(sys.argv) > 2 else os.path.join(
+            os.environ.get("TEMP", "."), "Proofreader self-test")))
     app = QApplication(sys.argv)
     font = app.font()
     font.setPointSize(max(font.pointSize(), 11))
@@ -705,8 +770,13 @@ def main():
     black_words(app)
     window = Window(sys.argv[1:])
     window.show()
-    sys.exit(app.exec())
+    code = app.exec()
+    # Let Qt take the window down while it is still running: leaving it to
+    # Python's final clean-up crashed the program about half the time it closed.
+    window.deleteLater()
+    app.processEvents()
+    return code
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

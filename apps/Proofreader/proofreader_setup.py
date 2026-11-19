@@ -22,13 +22,20 @@ SHORTCUT = "Proofreader.lnk"
 LAUNCHER = "Run_Proofreader.bat"
 
 
-def missing_packages(packages=PACKAGES):
+def frozen():
+    """True in the installed Proofreader.exe, which has every add-on inside it and no pip."""
+    return getattr(sys, "frozen", False)
+
+
+def missing_packages(packages=PACKAGES, is_frozen=None):
+    if frozen() if is_frozen is None else is_frozen:
+        return []
     return [pip for module, pip in packages.items() if importlib.util.find_spec(module) is None]
 
 
-def install_packages(names, run=subprocess.run):
+def install_packages(names, run=subprocess.run, is_frozen=None):
     """pip-install the named add-ons. Returns an error text, or "" when fine."""
-    if not names:
+    if not names or (frozen() if is_frozen is None else is_frozen):
         return ""
     result = run([sys.executable, "-m", "pip", "install", "--disable-pip-version-check"] + names)
     importlib.invalidate_caches()
