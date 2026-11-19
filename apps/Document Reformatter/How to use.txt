@@ -23,6 +23,12 @@ START IT
      indent, alignment and text color. "Leave as it is in each file"
      changes nothing.
    Right side, "Clean up" (tick the ones you want):
+   - Split giant paragraphs into proper paragraphs: for text whose line
+     breaks were lost (often copied from a web page), so a whole story is
+     one huge paragraph. It breaks the paragraph where a sentence ends with
+     two spaces (that is usually where a line break was). Anything still
+     very long is broken every few sentences, at the start of a quote where
+     there is one. Normal paragraphs, headings and tables are left alone.
    - Remove highlighting and shading behind words. Shading in tables stays.
      White words that sat on a dark background turn normal color, so they
      don't disappear on the white page.
@@ -47,12 +53,15 @@ START IT
 
 4. READ THE SUMMARY
    It lists the files that were converted, skipped, or could not be
-   converted, and why. "Open the fixed folder" shows the new files.
+   converted, and why. "Open the folder" shows the new files, and
+   "Open the "Originals" folder" shows your untouched originals.
 
 WHERE THE NEW FILES GO
-  Into a folder called "fixed" inside the folder you chose, always as .rtf.
-  Your original files are never changed. Running it again on the same
-  folder replaces the copies in "fixed".
+  The reformatted files are saved in the folder you chose, always as .rtf.
+  Your original files are moved, unchanged, into a folder called
+  "Originals" inside it. Nothing is ever replaced: if a name is already
+  taken (for example when you run it twice on the same folder), " (2)" is
+  added to the name.
 
 GOOD TO KNOW
   - Microsoft Word does the work in the background (you won't see it).
@@ -86,4 +95,5 @@ TRY IT SAFELY
 FILES IN THIS FOLDER
   Document Reformatter.ps1  - the window
   ReformatEngine.ps1        - the part that reformats the files
+  test_reformat.ps1         - checks the reformatting on made-up files
   Create shortcuts.ps1      - makes the shortcuts and the icon

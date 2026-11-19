@@ -1,7 +1,8 @@
 ﻿# ReformatEngine.ps1
 # The part of Document Reformatter that does the real work: it finds the .rtf,
 # .doc, .docx and .txt files in a folder and uses Microsoft Word to reformat each one and save
-# it as .rtf. If Word can't open a file, LibreOffice (when installed) reads it
+# it as .rtf in the same folder, moving the original into an "Originals" folder.
+# If Word can't open a file, LibreOffice (when installed) reads it
 # first. "Document Reformatter.ps1" (the window) loads this file.
 
 # Word's numbers for the things we use (Word calls them wd... constants)
@@ -23,6 +24,7 @@ $script:WdHeadingStyleIds = @(-2, -3, -4, -5, -6, -7, -8, -9, -10, -63, -75)
 $script:WdSizedStories    = @(1, 5)
 
 $script:DocExtensions = @('.rtf', '.doc', '.docx', '.txt')
+$script:OriginalsName = 'Originals'   # the folder the originals are moved into
 # Short work folder in Temp: LibreOffice crashes on very long paths
 $script:WorkRoot      = Join-Path ([IO.Path]::GetTempPath()) 'DocumentReformatter'
 
@@ -47,9 +49,10 @@ function Find-Documents {
     }
 
     # Report.doc and Report.docx would both become Report.rtf, so files that
-    # share a name get their old type added: "Report (doc).rtf", "Report (docx).rtf"
+    # share a name get their old type added: "Report (doc).rtf", "Report (docx).rtf".
+    # Skipped files count too, because they stay in the folder under their name.
     $counts = @{}
-    foreach ($it in $items) { if (-not $it.SkipReason) { $counts[$it.BaseName] = 1 + [int]$counts[$it.BaseName] } }
+    foreach ($it in $items) { $counts[$it.BaseName] = 1 + [int]$counts[$it.BaseName] }
     foreach ($it in $items) {
         if (-not $it.SkipReason -and $counts[$it.BaseName] -gt 1) { $it.OutputName = '{0} ({1}).rtf' -f $it.BaseName, $it.Type }
     }
@@ -59,11 +62,13 @@ function Find-Documents {
 
 # ---------------------------------------------------------------- the batch
 
+# Each reformatted document is saved in the folder itself, and its original is
+# moved into the "Originals" folder inside it.
 function Invoke-Reformat {
     param(
         [object[]]$Items,          # from Find-Documents
         [hashtable]$Settings,
-        [string]$OutFolder,
+        [string]$Folder,           # the folder the documents are in
         [scriptblock]$OnFile,      # & $OnFile <number> <total> <item>, before each file
         [scriptblock]$OnTick,      # called now and then so the window stays responsive
         [scriptblock]$ShouldStop   # returns $true when the user pressed Stop
@@ -73,13 +78,17 @@ function Invoke-Reformat {
     foreach ($it in @($Items | Where-Object { $_.SkipReason })) { [void]$results.Add((New-Result $it 'Skipped' $it.SkipReason)) }
     if ($todo.Count -eq 0) { return ,$results }
 
-    if (-not (Test-Path -LiteralPath $OutFolder)) {
-        try { New-Item -ItemType Directory -Path $OutFolder -ErrorAction Stop | Out-Null }
-        catch { throw ('The "fixed" folder could not be made here: ' + $OutFolder + "`n`n(" + (Get-InnerMessage $_.Exception) + ')') }
-    }
+    $saveDir = Join-Path $script:WorkRoot 'saved'
+    New-Item -ItemType Directory -Force -Path $saveDir | Out-Null
     $libre = Find-LibreOffice
     $word = Start-Word
     try {
+        # Only once Word has started, so a PC without Word isn't left with an empty folder
+        $originals = Join-Path $Folder $script:OriginalsName
+        if (-not (Test-Path -LiteralPath $originals)) {
+            try { New-Item -ItemType Directory -Path $originals -ErrorAction Stop | Out-Null }
+            catch { throw ('The "' + $script:OriginalsName + '" folder could not be made here: ' + $originals + "`n`n(" + (Get-InnerMessage $_.Exception) + ')') }
+        }
         for ($i = 0; $i -lt $todo.Count; $i++) {
             $it = $todo[$i]
             if ($ShouldStop -and (& $ShouldStop)) {
@@ -87,10 +96,13 @@ function Invoke-Reformat {
                 break
             }
             if ($OnFile) { & $OnFile ($i + 1) $todo.Count $it }
-            $out = Join-Path $OutFolder $it.OutputName
+            # Saved in the work folder first: the original may have the very name the new file gets
+            $out = Join-Path $saveDir 'reformatted.rtf'
+            if (Test-Path -LiteralPath $out) { Remove-Item -LiteralPath $out -Force }
             try {
                 $note = Convert-OneDocument $word $it.Path $out $Settings $libre $OnTick
-                [void]$results.Add((New-Result $it 'Converted' $note $it.OutputName))
+                $placed = Move-IntoPlace $it $out $Folder $originals
+                [void]$results.Add((New-Result $it 'Converted' $note $placed.Output $placed.Original))
             } catch {
                 [void]$results.Add((New-Result $it 'Failed' (Get-FriendlyError (Get-InnerMessage $_.Exception))))
                 # If Word itself crashed, start a fresh copy for the next file
@@ -103,8 +115,40 @@ function Invoke-Reformat {
     return ,$results
 }
 
-function New-Result($Item, [string]$Status, [string]$Detail, [string]$Output = '') {
-    [pscustomobject]@{ Name = $Item.Name; Path = $Item.Path; Status = $Status; Detail = $Detail; Output = $Output }
+function New-Result($Item, [string]$Status, [string]$Detail, [string]$Output = '', [string]$Original = '') {
+    [pscustomobject]@{ Name = $Item.Name; Path = $Item.Path; Status = $Status; Detail = $Detail; Output = $Output; Original = $Original }
+}
+
+# Moves the original into the Originals folder, then the reformatted file into
+# the folder. Nothing is ever overwritten: a name already taken gets " (2)",
+# " (3)"... added. If the new file can't be put in place, the original goes back.
+# Returns the names used: @{ Output = ...; Original = ... }
+function Move-IntoPlace($Item, [string]$Reformatted, [string]$Folder, [string]$Originals) {
+    $kept = Get-FreeName $Originals $Item.Name
+    try { Move-Item -LiteralPath $Item.Path -Destination $kept -ErrorAction Stop }
+    catch {
+        Remove-Item -LiteralPath $Reformatted -Force -ErrorAction SilentlyContinue
+        throw ('MOVE:' + (Get-InnerMessage $_.Exception))
+    }
+    $target = Get-FreeName $Folder $Item.OutputName
+    try { Move-Item -LiteralPath $Reformatted -Destination $target -ErrorAction Stop }
+    catch {
+        $why = Get-InnerMessage $_.Exception
+        Remove-Item -LiteralPath $Reformatted -Force -ErrorAction SilentlyContinue
+        try { Move-Item -LiteralPath $kept -Destination $Item.Path -ErrorAction Stop }
+        catch { throw ('KEPT:' + $script:OriginalsName + '\' + (Split-Path -Leaf $kept)) }
+        throw ('PLACE:' + $why)
+    }
+    return @{ Output = (Split-Path -Leaf $target); Original = (Split-Path -Leaf $kept) }
+}
+
+# Folder\Name, or Folder\Name (2).ext, (3)... if that is taken
+function Get-FreeName([string]$Folder, [string]$Name) {
+    $path = Join-Path $Folder $Name
+    $base = [IO.Path]::GetFileNameWithoutExtension($Name)
+    $ext = [IO.Path]::GetExtension($Name)
+    for ($n = 2; Test-Path -LiteralPath $path; $n++) { $path = Join-Path $Folder ('{0} ({1}){2}' -f $base, $n, $ext) }
+    return $path
 }
 
 
@@ -191,7 +235,7 @@ function Get-InnerMessage($Ex) {
 
 function Get-FriendlyError([string]$Message) {
     $kind = ''; $detail = $Message
-    if ($Message -match '^(OPEN|EDIT|SAVE|LOCKED|NOTTEXT):(.*)$') { $kind = $Matches[1]; $detail = $Matches[2].Trim() }
+    if ($Message -match '^(OPEN|EDIT|SAVE|MOVE|PLACE|KEPT|LOCKED|NOTTEXT):(.*)$') { $kind = $Matches[1]; $detail = $Matches[2].Trim() }
     if ($detail -match 'RPC|remote procedure|disconnected|0x800706BA|0x80010108') { return 'Word stopped responding while working on this file.' }
     switch ($kind) {
         'OPEN' {
@@ -203,7 +247,10 @@ function Get-FriendlyError([string]$Message) {
         }
         'LOCKED' { return 'This file is locked against changes with a password (Restrict Editing), so it was left alone.' }
         'NOTTEXT' { return 'This .txt file does not contain readable text, so it was left alone.' }
-        'SAVE'   { return 'The fixed copy could not be saved. If an older copy in the "fixed" folder is open in Word, close it and try again.' }
+        'SAVE'   { return 'The reformatted file could not be saved, so the original was left as it was.' }
+        'MOVE'   { return 'The original could not be moved into the "' + $script:OriginalsName + '" folder (it may be open in another program), so it was left as it was. Close it and try again.' }
+        'PLACE'  { return 'The reformatted file could not be put in the folder, so the original was put back as it was.' }
+        'KEPT'   { return 'The reformatted file could not be put in the folder. Your original is safe, unchanged, in ' + $detail + '.' }
         'EDIT'   { return 'Something went wrong while changing this file. (Word said: ' + $detail + ')' }
     }
     return 'Something went wrong: ' + $detail
@@ -255,7 +302,7 @@ function Convert-OneDocument {
     param($Word, [string]$Path, [string]$OutPath, [hashtable]$S, [string]$LibreOffice, [scriptblock]$OnTick)
     $notes = New-Object System.Collections.ArrayList
     $isText = ([IO.Path]::GetExtension($Path) -ieq '.txt')
-    $stats = @{ EmptyLines = 0 }
+    $stats = @{ EmptyLines = 0; Breaks = 0 }
     $doc = $null
     $openPath = $Path
     if ($isText) { $openPath = Get-WordReadyText $Path }
@@ -275,6 +322,7 @@ function Convert-OneDocument {
         try {
             $links = 0
             if ($S.RemoveLinks) { $links = Remove-Hyperlinks $doc }
+            if ($S.SplitParagraphs) { $stats.Breaks = Split-RunTogether $doc.Content $OnTick }
             Set-DocumentFormatting $doc $S $stats $OnTick
         } catch { throw ('EDIT:' + (Get-InnerMessage $_.Exception)) }
         try { $doc.SaveAs2($OutPath, $script:WdFormatRTF) } catch { throw ('SAVE:' + (Get-InnerMessage $_.Exception)) }
@@ -286,6 +334,8 @@ function Convert-OneDocument {
         elseif ($links -eq 1) { [void]$notes.Add('1 link removed') }
         else { [void]$notes.Add("$links links removed") }
     }
+    if ($stats.Breaks -eq 1) { [void]$notes.Add('1 paragraph break added where the text ran together') }
+    elseif ($stats.Breaks -gt 1) { [void]$notes.Add("$($stats.Breaks) paragraph breaks added where the text ran together") }
     if ($stats.EmptyLines -eq 1) { [void]$notes.Add('1 empty line removed') }
     elseif ($stats.EmptyLines -gt 1) { [void]$notes.Add("$($stats.EmptyLines) empty lines removed") }
     return ($notes -join '; ')
@@ -351,6 +401,118 @@ function Remove-Hyperlinks($Doc) {
 function Clear-LinkLook($Range) {
     if ($null -eq $Range) { return }
     try { $Range.Font.Underline = 0; $Range.Font.Color = $script:WdColorAutomatic } catch {}
+}
+
+
+# ---------------------------------------------------------------- run-together paragraphs
+
+# Text copied from a web page sometimes loses its line breaks, so a whole story
+# turns into one giant paragraph. Often each lost break left two spaces behind
+# after the end of a sentence, so long paragraphs are split there. Whatever is
+# still very long after that is split at sentence ends, every few sentences,
+# at the start of a quote where there is one.
+$script:LongParagraph = 1500   # characters; paragraphs longer than this are looked at
+$script:HugeParagraph = 3000   # still longer than this: split at sentence ends
+$script:PieceLength   = 700    # about how long those pieces are
+$script:ShortestPiece = 150    # never split off less than this
+# The end of a sentence, maybe followed by closing quotes or brackets, then the
+# spaces after it (the "gap") and the first thing of the next sentence
+$script:SentenceGap = '[.!?' + [char]0x2026 + '][''"' + [char]0x201D + [char]0x2019 + ')\]]*(?<gap>[ \xA0]+)(?=\S)'
+$script:OpeningQuotes = '"' + [char]0x201C + [char]0x2018   # a new line of dialogue
+$script:OpeningMarks  = $script:OpeningQuotes + '(['        # anything that can start a sentence
+
+# Splits the long paragraphs of the main text; returns how many breaks were added
+function Split-RunTogether($Story, [scriptblock]$OnTick) {
+    $longest = 0
+    foreach ($piece in ([string]$Story.Text).Split([char]13)) { if ($piece.Length -gt $longest) { $longest = $piece.Length } }
+    if ($longest -le $script:LongParagraph) { return 0 }   # nothing to do: most documents stop here
+
+    $long = New-Object System.Collections.ArrayList
+    $n = 0
+    foreach ($p in $Story.Paragraphs) {
+        $n++
+        if ($OnTick -and ($n % 25) -eq 0) { & $OnTick }
+        $r = $p.Range
+        if ($r.End - $r.Start -le $script:LongParagraph) { continue }
+        if ($p.OutlineLevel -lt $script:WdOutlineBodyText) { continue }   # headings stay as they are
+        if ($r.Information($script:WdWithInTable)) { continue }            # so do tables
+        [void]$long.Add(@($r.Start, $r.End))
+    }
+    $added = 0
+    # From the end backwards, so the places noted for earlier paragraphs stay right
+    for ($i = $long.Count - 1; $i -ge 0; $i--) {
+        $para = $Story.Duplicate
+        $para.SetRange($long[$i][0], $long[$i][1])
+        $text = [string]$para.Text
+        $breaks = Get-ParagraphBreaks $text
+        for ($j = $breaks.Count - 1; $j -ge 0; $j--) {
+            if ($OnTick -and ($j % 25) -eq 0) { & $OnTick }
+            if (Split-ParagraphAt $para $text $breaks[$j][0] $breaks[$j][1]) { $added++ }
+        }
+    }
+    return $added
+}
+
+# Where one long paragraph should be split: a list of (gap start, gap end)
+# places in its text. The spaces in each gap become the paragraph break.
+function Get-ParagraphBreaks([string]$Text) {
+    $gaps = New-Object System.Collections.ArrayList
+    foreach ($m in [regex]::Matches($Text, $script:SentenceGap)) {
+        $g = $m.Groups['gap']
+        $next = $Text[$g.Index + $g.Length]
+        [void]$gaps.Add(@{ From = $g.Index; To = $g.Index + $g.Length
+            Double = ($g.Length -ge 2 -and -not [char]::IsLower($next))
+            Quote = ($script:OpeningQuotes.IndexOf($next) -ge 0)
+            Starts = ([char]::IsUpper($next) -or [char]::IsDigit($next) -or $script:OpeningMarks.IndexOf($next) -ge 0) })
+    }
+    $textEnd = $Text.TrimEnd([char]13, [char]7).Length
+    $chosen = New-Object System.Collections.ArrayList
+
+    # 1. Two spaces after a sentence - unless the writer puts two spaces after
+    #    (nearly) every sentence, when they don't mean anything
+    $doubles = @($gaps | Where-Object { $_.Double })
+    if ($doubles.Count -gt 0 -and $doubles.Count -lt 0.8 * $gaps.Count) {
+        foreach ($g in $doubles) { [void]$chosen.Add($g) }
+    }
+
+    # 2. Pieces that are still very long: every few sentences
+    $all = New-Object System.Collections.ArrayList
+    $pieceStart = 0
+    $k = 0
+    foreach ($stop in @($chosen) + @(@{ From = $textEnd; To = $textEnd; Last = $true })) {
+        if ($stop.From - $pieceStart -gt $script:HugeParagraph) {
+            $since = $pieceStart
+            while ($k -lt $gaps.Count -and $gaps[$k].From -lt $stop.From) {
+                $g = $gaps[$k]; $k++
+                if ($g.From -le $since -or -not $g.Starts) { continue }
+                if ($stop.From - $g.To -lt $script:ShortestPiece) { break }
+                $length = $g.From - $since
+                if ($length -ge $script:PieceLength -or ($g.Quote -and $length -ge $script:ShortestPiece)) {
+                    [void]$all.Add(@($g.From, $g.To))
+                    $since = $g.To
+                }
+            }
+        }
+        while ($k -lt $gaps.Count -and $gaps[$k].From -le $stop.From) { $k++ }
+        if (-not $stop.Last) { [void]$all.Add(@($stop.From, $stop.To)) }
+        $pieceStart = $stop.To
+    }
+    return ,@($all | Sort-Object { $_[0] })
+}
+
+# Turns the spaces between From and To (places in Text) into a paragraph break.
+# Word counts some things, such as fields, differently from the text, so the
+# spot is checked first; a spot that doesn't match is left alone.
+function Split-ParagraphAt($Para, [string]$Text, [int]$From, [int]$To) {
+    $a = [Math]::Max(0, $From - 4)
+    $z = [Math]::Min($Text.Length, $To + 4)
+    $check = $Para.Duplicate
+    $check.SetRange($Para.Start + $a, $Para.Start + $z)
+    if ([string]$check.Text -ne $Text.Substring($a, $z - $a)) { return $false }
+    $gap = $Para.Duplicate
+    $gap.SetRange($Para.Start + $From, $Para.Start + $To)
+    $gap.InsertParagraph()
+    return $true
 }
 
 

@@ -1,8 +1,8 @@
 ﻿# Document Reformatter.ps1
 # The window for Document Reformatter. Pick a folder, choose a font, size and
-# Normal style, and every .rtf, .doc, .docx and .txt file in that folder is saved as
-# a reformatted .rtf copy in a "fixed" folder inside it. The originals are
-# never changed. Start it with the "Document Reformatter" shortcut.
+# Normal style, and every .rtf, .doc, .docx and .txt file in that folder is saved
+# there reformatted, as .rtf. The originals are moved, unchanged, into an
+# "Originals" folder inside it. Start it with the "Document Reformatter" shortcut.
 param([string]$Folder)
 
 $ErrorActionPreference = 'Stop'
@@ -289,7 +289,7 @@ namespace DocReformatter
 $SettingsFile = Join-Path $env:APPDATA 'Document Reformatter\settings.json'
 $Defaults = @{ FontName = 'Calibri'; FontSize = 12; Headings = 'Keep'; LineSpacing = 'Leave'; SpaceBetween = 'Leave'
                Indent = 'Leave'; Align = 'Leave'; TextColour = 'Leave'; RemoveHighlight = $false; ClearEmphasis = $false
-               EvenSpacing = $false; RemoveEmptyLines = $false; WidowControl = $false; RemoveLinks = $true
+               EvenSpacing = $false; RemoveEmptyLines = $false; WidowControl = $false; RemoveLinks = $true; SplitParagraphs = $true
                PaperSize = 'Leave'; Margins = 'Leave'; LastFolder = '' }
 
 function Get-SavedSettings {
@@ -413,6 +413,17 @@ function Add-Row($Grid, $Left, $Right, [switch]$Wide) {
     }
 }
 
+# The part of the screen a window may use. DOC_REFORMATTER_SCREEN_HEIGHT pretends
+# the screen is shorter, so test_small_screen.ps1 can check small screens on a big one.
+function Get-ScreenArea($Control) {
+    $area = [System.Windows.Forms.Screen]::FromControl($Control).WorkingArea
+    $fake = 0
+    if ([int]::TryParse([string]$env:DOC_REFORMATTER_SCREEN_HEIGHT, [ref]$fake) -and $fake -gt 0 -and $fake -lt $area.Height) {
+        $area.Height = $fake
+    }
+    return $area
+}
+
 function New-Button([string]$Text) {
     $b = New-Object System.Windows.Forms.Button
     $b.Text = $Text
@@ -500,6 +511,7 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
     $preview = New-Label ''
     $preview.AutoSize = $false
     $preview.Size = New-Object System.Drawing.Size(470, 34)
+    $preview.AutoEllipsis = $true      # a very wide font ends in "..." instead of a cut-off second line
     Add-Row $left $null $preview
     $updatePreview = {
         $name = $fontBox.Text.Trim()
@@ -507,7 +519,7 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
         if ($Fonts.Previewable.Contains($name)) {
             try {
                 $preview.Font = New-Object System.Drawing.Font($name, 13)
-                $preview.Text = 'The quick brown fox jumps over the lazy dog. 0123456789'
+                $preview.Text = 'The quick brown fox jumps over the lazy dog.'
                 $preview.ForeColor = [System.Drawing.SystemColors]::ControlText
                 $shown = $true
             } catch {}
@@ -575,6 +587,8 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
     $first = New-Heading 'Clean up'
     $first.Margin = New-Object System.Windows.Forms.Padding(3, 10, 3, 3)
     Add-Row $right $first -Wide
+    $splitBox = New-Tick "Split giant paragraphs into proper paragraphs`n(for text whose line breaks were lost, such as copied from a web page)" ([bool]$Last.SplitParagraphs)
+    Add-Row $right $splitBox -Wide
     $highlightBox = New-Tick 'Remove highlighting and shading behind words' ([bool]$Last.RemoveHighlight)
     Add-Row $right $highlightBox -Wide
     $emphasisBox = New-Tick "Remove bold, italic and underline added by hand`n(headings and tables keep theirs)" ([bool]$Last.ClearEmphasis)
@@ -598,8 +612,8 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
     $wide = 1060
     try { $wide = [Math]::Max(700, $sides.GetPreferredSize([System.Drawing.Size]::Empty).Width - 6) } catch {}
     $list.Width = $wide
-    $note = New-Label ('The reformatted copies are saved as .rtf files in a folder called "fixed" inside this folder. ' +
-        'Your original files are not changed. If "fixed" already has copies from an earlier run, they are replaced.') -Width $wide
+    $note = New-Label ('The reformatted documents are saved in this folder as .rtf files. Your original files are moved, unchanged, ' +
+        'into a folder called "Originals" inside this folder. Nothing is ever replaced: if a name is already taken, " (2)" is added to the name.') -Width $wide
     $note.ForeColor = [System.Drawing.Color]::DimGray
     $note.Margin = New-Object System.Windows.Forms.Padding(3, 16, 3, 6)
     Add-Row $bottom $note
@@ -618,19 +632,35 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
     $form.AcceptButton = $startBtn
     $form.CancelButton = $cancelBtn
 
-    # On a small screen the window scrolls instead of running off the bottom
+    # On a small screen the settings scroll, while the note and the Start and
+    # Cancel buttons stay in view at the bottom of the window
+    $scroll = New-Object System.Windows.Forms.Panel
+    $scroll.Dock = 'Fill'
+    $scroll.AutoScroll = $true
     $form.Add_Load({
         try {
-            $area = [System.Windows.Forms.Screen]::FromControl($form).WorkingArea
-            if ($form.Height -gt $area.Height) {
-                $w = $form.Width + [System.Windows.Forms.SystemInformation]::VerticalScrollBarWidth
-                $form.AutoSize = $false
-                $form.AutoScroll = $true
-                $form.Size = New-Object System.Drawing.Size($w, $area.Height)
-                $form.Location = New-Object System.Drawing.Point([Math]::Max($area.Left, $form.Left - 10), $area.Top)
-            }
+            $area = Get-ScreenArea $form
+            if ($form.Height -le $area.Height) { return }
+            $form.SuspendLayout()
+            $form.AutoSize = $false
+            $page.Controls.Remove($bottom)
+            $form.Controls.Remove($page)
+            $scroll.Controls.Add($page)
+            $bottom.Dock = 'Bottom'
+            $form.Controls.Add($scroll)
+            $form.Controls.Add($bottom)
+            $scroll.BringToFront()        # so it fills only the space above the buttons
+            # As wide as the settings plus the scroll bar, so no sideways scroll bar is needed
+            $inner = $page.GetPreferredSize([System.Drawing.Size]::Empty).Width + $form.Padding.Horizontal +
+                     [System.Windows.Forms.SystemInformation]::VerticalScrollBarWidth + 4
+            $border = $form.Width - $form.ClientSize.Width
+            $form.Size = New-Object System.Drawing.Size(($inner + $border), $area.Height)
+            $form.Location = New-Object System.Drawing.Point([Math]::Max($area.Left, $form.Left - 10), $area.Top)
+            $form.ResumeLayout($true)
         } catch {}
     })
+    # Always open with the folder line at the top showing
+    $form.Add_Shown({ if ($scroll.Parent) { $scroll.AutoScrollPosition = New-Object System.Drawing.Point(0, 0) } })
 
     $changeBtn.Add_Click({ $form.DialogResult = 'Retry' })
     $startBtn.Add_Click({
@@ -653,6 +683,7 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
                        Indent = (Get-ChoiceKey $indentBox); Align = (Get-ChoiceKey $alignBox); TextColour = (Get-ChoiceKey $colourBox)
                        RemoveHighlight = $highlightBox.Checked; ClearEmphasis = $emphasisBox.Checked; EvenSpacing = $spacingBox.Checked
                        RemoveEmptyLines = $emptyBox.Checked; WidowControl = $widowBox.Checked; RemoveLinks = $linkBox.Checked
+                       SplitParagraphs = $splitBox.Checked
                        PaperSize = (Get-ChoiceKey $paperBox); Margins = (Get-ChoiceKey $marginBox) }
         $form.DialogResult = 'OK'
     })
@@ -667,7 +698,7 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
 
 # ---------------------------------------------------------------- working, then the summary
 
-function Invoke-WithProgress($Items, [hashtable]$Settings, [string]$OutFolder) {
+function Invoke-WithProgress($Items, [hashtable]$Settings, [string]$Folder) {
     $total = @($Items | Where-Object { -not $_.SkipReason }).Count
     $form = New-Object System.Windows.Forms.Form
     $form.Text = 'Document Reformatter - working'
@@ -716,7 +747,7 @@ function Invoke-WithProgress($Items, [hashtable]$Settings, [string]$OutFolder) {
     $form.Refresh()
     [System.Windows.Forms.Application]::DoEvents()
     try {
-        $results = Invoke-Reformat -Items $Items -Settings $Settings -OutFolder $OutFolder `
+        $results = Invoke-Reformat -Items $Items -Settings $Settings -Folder $Folder `
             -OnFile {
                 param($number, $count, $item)
                 $p = $script:Progress
@@ -734,20 +765,24 @@ function Invoke-WithProgress($Items, [hashtable]$Settings, [string]$OutFolder) {
     return ,$results
 }
 
-function Show-Summary($Results, [string]$Folder, [string]$OutFolder) {
+function Show-Summary($Results, [string]$Folder) {
     $conv = @($Results | Where-Object { $_.Status -eq 'Converted' })
     $skip = @($Results | Where-Object { $_.Status -eq 'Skipped' })
     $fail = @($Results | Where-Object { $_.Status -eq 'Failed' })
+    $originals = Join-Path $Folder $script:OriginalsName
 
     $sb = New-Object System.Text.StringBuilder
-    [void]$sb.AppendLine("Folder:  $Folder")
-    [void]$sb.AppendLine("Copies saved in:  $OutFolder")
+    [void]$sb.AppendLine("Reformatted documents saved in:  $Folder")
+    [void]$sb.AppendLine("Originals moved to:  $originals")
     [void]$sb.AppendLine('')
     [void]$sb.AppendLine("CONVERTED ($($conv.Count))")
     if ($conv.Count -eq 0) { [void]$sb.AppendLine('   (none)') }
     foreach ($r in $conv) {
-        $line = "   $($r.Name)   ->   fixed\$($r.Output)"
-        if ($r.Detail) { $line += "   ($($r.Detail))" }
+        $line = "   $($r.Name)   ->   $($r.Output)"
+        $extra = @()
+        if ($r.Detail) { $extra += $r.Detail }
+        if ($r.Original -and $r.Original -ne $r.Name) { $extra += "original kept as $($script:OriginalsName)\$($r.Original), because that name was taken" }
+        if ($extra) { $line += "   ($($extra -join '; '))" }
         [void]$sb.AppendLine($line)
     }
     foreach ($group in @(@('SKIPPED', $skip), @('COULD NOT BE CONVERTED', $fail))) {
@@ -794,12 +829,17 @@ function Show-Summary($Results, [string]$Folder, [string]$OutFolder) {
     $closeBtn.DialogResult = 'Cancel'
     $againBtn = New-Button 'Reformat another folder'
     $againBtn.DialogResult = 'Retry'
-    $openBtn = New-Button 'Open the "fixed" folder'
+    $openBtn = New-Button 'Open the folder'
     $openBtn.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
-    $openBtn.Add_Click({ Start-Process -FilePath $OutFolder })
-    $openBtn.Enabled = ($conv.Count -gt 0)
+    $openBtn.Add_Click({ Start-Process -FilePath $Folder })
+    $originalsBtn = New-Button 'Open the "Originals" folder'
+    $originalsBtn.Add_Click({
+        if (Test-Path -LiteralPath $originals) { Start-Process -FilePath $originals }
+        else { Show-Message 'There is no "Originals" folder yet, because no document was reformatted.' | Out-Null }
+    })
     $buttons.Controls.Add($closeBtn)
     $buttons.Controls.Add($againBtn)
+    $buttons.Controls.Add($originalsBtn)
     $buttons.Controls.Add($openBtn)
     $panel.Controls.Add($buttons)
     $form.Controls.Add($panel)
@@ -849,9 +889,8 @@ try {
         foreach ($k in @($choice.Keys)) { $last[$k] = $choice[$k] }
         $last.LastFolder = $current
         Save-Settings $last
-        $outFolder = Join-Path $current 'fixed'
-        $results = Invoke-WithProgress $items $choice $outFolder
-        if ((Show-Summary $results $current $outFolder) -ne 'Again') { break }
+        $results = Invoke-WithProgress $items $choice $current
+        if ((Show-Summary $results $current) -ne 'Again') { break }
         $current = $null
     }
 } catch {
