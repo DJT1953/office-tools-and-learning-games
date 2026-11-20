@@ -112,6 +112,23 @@ try {
     Check 'files read before keep their text' (($second | Where-Object { $_.Name -eq 'notes.txt' }).Text) 'already read'
     Check 'files found later are added' ($known.Count) 6
 
+    '--- picking files'
+    $picked = Find-Files $mixed -AllFiles
+    Check 'picked files found' (Set-PickedFiles $picked @('notes.txt', 'PHOTO 2.jpg', 'gone.txt')) 2
+    Check 'only picked files ticked' ((@($picked | Where-Object Include) | ForEach-Object Name) -join ', ') 'notes.txt, Photo 2.jpg'
+    $p = Get-RenamePlan -Items $picked -Options @{ Source = 'Name'; Number = $true; NumberDigits = 1 } -Mode 'Copy' -ExistingNames @() -Folder $mixed
+    Check 'unticked files left out, numbers skip them' (Get-PlanText $p) '~$notes.docx>(keep) | empty.txt>(keep) | notes.txt>1 - notes.txt | Photo 1.jpg>(keep) | Photo 2.jpg>2 - Photo 2.jpg | Photo 10.jpg>(keep)'
+    Check 'why an unticked file is left out' (($p | Where-Object { $_.Item.Name -eq 'Photo 1.jpg' }).Note) 'not ticked, so it is left out'
+    Check 'nothing picked ticks every file' (Set-PickedFiles $picked @()) 0
+    Check 'every file ticked again' (@($picked | Where-Object Include).Count) 6
+    Check 'a picked photo needs all files' (Test-NeedsAllFiles @('notes.txt', 'Photo 2.jpg')) $true
+    Check 'picked documents need only documents' (Test-NeedsAllFiles @('notes.txt', 'Letter.DOCX')) $false
+    $docs = Find-Files $mixed
+    [void](Set-PickedFiles $docs @('empty.txt'))
+    Read-DocumentStarts -Items $docs
+    Check 'unticked documents are not read' ([bool](($docs | Where-Object { $_.Name -eq 'notes.txt' }).TextRead)) $false
+    Check 'ticked documents are read' ([bool](($docs | Where-Object { $_.Name -eq 'empty.txt' }).TextRead)) $true
+
     '--- 1. start with'
     $p = Get-Plan $mixed @{ Source = 'Text' } -AllFiles -Read
     Check 'text: documents named, others kept' (Get-PlanText $p) '~$notes.docx>(keep) | empty.txt>(keep) | notes.txt>Shopping list milk.txt | Photo 1.jpg>(keep) | Photo 2.jpg>(keep) | Photo 10.jpg>(keep)'

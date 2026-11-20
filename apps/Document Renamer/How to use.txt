@@ -14,25 +14,36 @@ WHAT IT DOES
   folder name before or after it.
 
 START IT
-  Double-click "Document Renamer" on your Desktop.
-  (The same shortcut is also in this folder.)
+  Double-click "Document Renamer" on your Desktop. (The same shortcut
+  is also in this folder, and in the Start menu if you installed it.)
+  If you unzipped it instead of installing it, first double-click
+  "Create desktop shortcut" in this folder: it makes the shortcut.
+  The main window opens, with no folder chosen yet. You can make your
+  choices in steps 2 and 3 below before or after choosing the folder.
 
 1. CHOOSE A FOLDER
-   A window like Word's Open window shows your folders and the files in
-   them. Open the folder that holds your files, then click "Use this
-   folder" (next to Open). Other ways that work:
-   - click a folder once to highlight it, then "Use this folder";
-   - click any file in the folder, then Open.
-   Only files directly in that folder are used, not files in folders
-   inside it. When the names are made from the documents' text, a small
-   window shows each document being read.
-   "Change folder..." in the main window opens the same window. Cancel
-   takes you back to the folder you were on, with your choices kept.
+   Click "Choose a folder..." at the top of the main window (once a
+   folder is chosen, the button says "Change folder..."). A window like
+   Word's Open window shows your folders and the files in them. It opens
+   in the folder you used last time. Open the folder that holds your
+   files, then either:
+   - click "Use this folder" (next to Open) to use all its files, or
+   - pick just the files you want (hold Ctrl and click each one), then
+     click Open. Only those files are ticked in the list.
+   You can also click a folder once to highlight it, then "Use this
+   folder". Only files directly in that folder are used, not files in
+   folders inside it. When the names are made from the documents' text,
+   a small window shows each document being read.
+   Cancel takes you back to the main window and the folder you were on
+   (if any), with your choices kept.
 
 2. CHOOSE WHICH FILES
    At the top of the window:
    - Word and text documents (.rtf, .doc, .docx, .txt), or
    - All files: photos, spreadsheets, PDFs and anything else as well.
+   Every file in the list has a tick box. Only ticked files get new
+   names: untick a file to leave it out. "Tick all" and "Untick all"
+   above the list do every file at once.
 
 3. CHOOSE HOW THE NEW NAMES ARE MADE
    The list below changes as you choose, so you can see every new name
@@ -122,6 +133,10 @@ GOOD TO KNOW
     can't open a file, LibreOffice tries instead. Word never changes or
     saves your files. .txt files are read directly, and special letters
     such as e-acute and the pound sign come through correctly.
+  - Word or LibreOffice is needed only for names made from the text of
+    Word and RTF files. Every other choice works without them.
+      Microsoft Word:      https://www.microsoft.com/microsoft-365/word
+      LibreOffice (free):  https://www.libreoffice.org/download/
   - Author, title and date taken are the same details File Explorer
     shows for a file. A file without one gets no information added, and
     the Note column says so.

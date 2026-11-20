@@ -50,6 +50,7 @@ $script:DefaultOptions = @{
 #   Text, TextRead                the start of a document's words, once reading was tried
 #   TextProblem, TextProblemKind  why there is no text ('Skip' or 'Error' for a reading problem)
 #   Props                         author, title and date taken, once Read-FileProperties ran
+#   Include                       $false when the user unticked it, so it is left out
 function Find-Files {
     param([string]$Folder, [switch]$AllFiles)
     $files = @(Get-ChildItem -LiteralPath $Folder -File -ErrorAction Stop |
@@ -63,7 +64,7 @@ function Find-Files {
             NameKey = (Get-NaturalKey $f.Name); Type = $f.Extension.TrimStart('.').ToLowerInvariant()
             IsDocument = ($script:DocExtensions -contains $f.Extension.ToLowerInvariant())
             Size = $f.Length; Created = $f.CreationTime; Modified = $f.LastWriteTime; Skip = $skip
-            Text = $null; TextRead = $false; TextProblem = $null; TextProblemKind = $null; Note = ''; Props = $null }
+            Text = $null; TextRead = $false; TextProblem = $null; TextProblemKind = $null; Note = ''; Props = $null; Include = $true }
     }
     $items = New-Object System.Collections.ArrayList
     foreach ($it in @($found | Sort-Object NameKey)) { [void]$items.Add($it) }
@@ -81,13 +82,33 @@ function Merge-KnownItems([object[]]$Found, [hashtable]$Known) {
     return ,$merged
 }
 
+# Ticks only the files named in $Names (the files picked in the folder window),
+# or every file when $Names is empty. Returns how many of the names were found.
+function Set-PickedFiles([object[]]$Items, [string[]]$Names) {
+    $wanted = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($n in $Names) { if ($n) { [void]$wanted.Add($n) } }
+    $found = 0
+    foreach ($it in $Items) {
+        $it.Include = ($wanted.Count -eq 0 -or $wanted.Contains($it.Name))
+        if ($wanted.Contains($it.Name)) { $found++ }
+    }
+    return $found
+}
+
+# $true when a picked file is not a Word or text document, so the window must list all files
+function Test-NeedsAllFiles([string[]]$Names) {
+    foreach ($n in $Names) { if ($n -and $script:DocExtensions -notcontains [IO.Path]::GetExtension($n).ToLowerInvariant()) { return $true } }
+    return $false
+}
+
 # Sorts names the way File Explorer does: "Photo 2" before "Photo 10"
 function Get-NaturalKey([string]$Name) {
     return [regex]::Replace($Name, '\d+', { param($m) $m.Value.PadLeft(20, '0') })
 }
 
+# An unticked document isn't read until it is ticked
 function Test-NeedsReading($Item) {
-    return ($Item.IsDocument -and -not $Item.Skip -and -not $Item.TextRead)
+    return ($Item.IsDocument -and -not $Item.Skip -and -not $Item.TextRead -and $false -ne $Item.Include)
 }
 
 function Set-TextProblem($Item, [string]$Problem, [string]$Kind) {
@@ -656,6 +677,8 @@ function Get-RenamePlan {
         $row = [pscustomobject]@{ Item = $it; NewName = ''; Action = 'Keep'; Note = ''; ProblemKind = ''; Base = ''; Notes = $null }
         [void]$plan.Add($row)
         if ($it.Skip) { $row.Note = $it.Skip; $row.ProblemKind = 'Skip'; continue }
+        # An unticked file is left out, and takes no number
+        if ($false -eq $it.Include) { $row.Note = 'not ticked, so it is left out'; $row.ProblemKind = 'Unticked'; continue }
         $m = Get-MainName $it $O
         if ($m.Problem) { $row.Note = $m.Problem; $row.ProblemKind = $m.Kind; continue }
         $numberText = ''

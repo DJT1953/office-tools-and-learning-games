@@ -65,6 +65,50 @@ namespace DocRenamer
         void SetFilter(IntPtr pFilter);
     }
 
+    // The Open window's own methods: the IFileDialog ones (same order), then two more
+    [ComImport, Guid("d57c7288-d4ad-4768-be02-9d969532d960"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IFileOpenDialog
+    {
+        [PreserveSig] int Show(IntPtr parent);
+        void SetFileTypes(uint cFileTypes, IntPtr rgFilterSpec);
+        void SetFileTypeIndex(uint iFileType);
+        void GetFileTypeIndex(out uint piFileType);
+        void Advise(IFileDialogEvents pfde, out uint pdwCookie);
+        void Unadvise(uint dwCookie);
+        void SetOptions(uint fos);
+        void GetOptions(out uint pfos);
+        void SetDefaultFolder(IShellItem psi);
+        void SetFolder(IShellItem psi);
+        void GetFolder(out IShellItem ppsi);
+        void GetCurrentSelection(out IShellItem ppsi);
+        void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+        void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string pszName);
+        void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
+        void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string pszText);
+        void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
+        void GetResult(out IShellItem ppsi);
+        void AddPlace(IShellItem psi, int fdap);
+        void SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string pszDefaultExtension);
+        void Close(int hr);
+        void SetClientGuid(ref Guid guid);
+        void ClearClientData();
+        void SetFilter(IntPtr pFilter);
+        void GetResults(out IShellItemArray ppenum);
+        void GetSelectedItems(out IShellItemArray ppsai);
+    }
+
+    [ComImport, Guid("b63ea76d-1f85-456f-a19c-48159efa858b"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IShellItemArray
+    {
+        void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppvOut);
+        void GetPropertyStore(int flags, ref Guid riid, out IntPtr ppv);
+        void GetPropertyDescriptionList(IntPtr keyType, ref Guid riid, out IntPtr ppv);
+        void GetAttributes(int attribFlags, uint sfgaoMask, out uint psfgaoAttribs);
+        void GetCount(out uint pdwNumItems);
+        void GetItemAt(uint dwIndex, out IShellItem ppsi);
+        void EnumItems(out IntPtr ppenumShellItems);
+    }
+
     [ComImport, Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     public interface IShellItem
     {
@@ -145,16 +189,31 @@ namespace DocRenamer
         private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
 
         public IFileDialog Dialog;
-        public string Chosen;
+        public string Chosen;            // the folder, when "Use this folder" chose it
+        public string OpenFolder;        // the folder that was open when Open was clicked
+        public System.Collections.Generic.List<string> PickedNames = new System.Collections.Generic.List<string>();
 
         // The full path of a shell item when it is a folder on the computer, or null
-        private static string FolderPath(IShellItem item)
+        public static string FolderPath(IShellItem item)
         {
             try
             {
                 string path;
                 item.GetDisplayName(0x80058000, out path);
                 if (!string.IsNullOrEmpty(path) && System.IO.Directory.Exists(path)) return path;
+            }
+            catch { }
+            return null;
+        }
+
+        // The full path of a shell item when it is a file on the computer, or null
+        public static string FilePath(IShellItem item)
+        {
+            try
+            {
+                string path;
+                item.GetDisplayName(0x80058000, out path);
+                if (!string.IsNullOrEmpty(path) && System.IO.File.Exists(path)) return path;
             }
             catch { }
             return null;
@@ -180,20 +239,27 @@ namespace DocRenamer
             return 0;
         }
 
-        // A file picked in the folder that is open chooses that folder - even a
-        // shortcut to a file somewhere else. (A typed path is followed as usual.)
+        // Open: notes the files picked in the folder that is open - the files
+        // themselves, even a shortcut to a file somewhere else
         public int OnFileOk(IFileDialog pfd)
         {
             try
             {
-                string typed;
-                pfd.GetFileName(out typed);
-                if (!string.IsNullOrEmpty(typed) && typed.IndexOfAny(new char[] { '\\', '/', ':' }) < 0)
+                IShellItem folder;
+                pfd.GetFolder(out folder);
+                OpenFolder = FolderPath(folder);
+                IShellItemArray selected;
+                ((IFileOpenDialog)pfd).GetSelectedItems(out selected);
+                uint count;
+                selected.GetCount(out count);
+                for (uint i = 0; i < count; i++)
                 {
-                    IShellItem folder;
-                    pfd.GetFolder(out folder);
-                    string path = FolderPath(folder);
-                    if (path != null) Chosen = path;
+                    IShellItem item;
+                    selected.GetItemAt(i, out item);
+                    string path = FilePath(item);
+                    if (path != null && OpenFolder != null &&
+                        string.Equals(System.IO.Path.GetDirectoryName(path), OpenFolder.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                        PickedNames.Add(System.IO.Path.GetFileName(path));
                 }
             }
             catch { }
@@ -215,11 +281,15 @@ namespace DocRenamer
         [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
         private static extern void SHCreateItemFromParsingName(string path, IntPtr pbc, [MarshalAs(UnmanagedType.LPStruct)] Guid riid, out IShellItem item);
 
+        // The files picked with Open in the last Pick, or null when the whole folder was chosen
+        public static string[] PickedFiles;
+
         // Shows the files in each folder while choosing. Returns the folder chosen
-        // with "Use this folder", or the folder of a file chosen with Open, or null
-        // if the window was cancelled.
+        // with "Use this folder" (PickedFiles is null), or the folder of the files
+        // picked with Open (PickedFiles names them), or null if the window was cancelled.
         public static string Pick(IntPtr owner, string title, string startFolder)
         {
+            PickedFiles = null;
             IFileDialog dialog = (IFileDialog)new FileOpenDialogClass();
             FolderButtonEvents events = new FolderButtonEvents();
             uint cookie = 0;
@@ -227,7 +297,8 @@ namespace DocRenamer
             {
                 uint options;
                 dialog.GetOptions(out options);
-                dialog.SetOptions(options | 0x40 | 0x2000000);   // real folders only; don't add the file picked to Recent files
+                // several files can be picked; real folders only; don't add the files picked to Recent files
+                dialog.SetOptions(options | 0x200 | 0x40 | 0x2000000);
                 dialog.SetTitle(title);
                 IFileDialogCustomize custom = (IFileDialogCustomize)dialog;
                 custom.AddPushButton(1, "Use this folder");
@@ -247,11 +318,31 @@ namespace DocRenamer
                 int shown = dialog.Show(owner);
                 if (events.Chosen != null) return events.Chosen;
                 if (shown != 0) return null;
-                IShellItem result;
-                dialog.GetResult(out result);
-                string path;
-                result.GetDisplayName(0x80058000, out path);   // the chosen file's full path
-                return System.IO.Path.GetDirectoryName(path);
+                if (events.OpenFolder != null && events.PickedNames.Count > 0)
+                {
+                    PickedFiles = events.PickedNames.ToArray();
+                    return events.OpenFolder;
+                }
+                // Otherwise (such as a path typed in the box) the files Open returned, in the folder of the first one
+                IShellItemArray results;
+                ((IFileOpenDialog)dialog).GetResults(out results);
+                uint count;
+                results.GetCount(out count);
+                string folderOfFirst = null;
+                System.Collections.Generic.List<string> names = new System.Collections.Generic.List<string>();
+                for (uint i = 0; i < count; i++)
+                {
+                    IShellItem item;
+                    results.GetItemAt(i, out item);
+                    string path = FolderButtonEvents.FilePath(item);
+                    if (path == null) continue;
+                    string folder = System.IO.Path.GetDirectoryName(path);
+                    if (folderOfFirst == null) folderOfFirst = folder;
+                    if (string.Equals(folder, folderOfFirst, StringComparison.OrdinalIgnoreCase)) names.Add(System.IO.Path.GetFileName(path));
+                }
+                if (folderOfFirst == null) return null;
+                PickedFiles = names.ToArray();
+                return folderOfFirst;
             }
             finally
             {
@@ -324,9 +415,16 @@ function Show-Message([string]$Text, [string]$Buttons = 'OK', [string]$Icon = 'I
     return [System.Windows.Forms.MessageBox]::Show($Text, 'Document Renamer', $Buttons, $Icon)
 }
 
+# Returns the folder chosen, or $null. $script:PickedFiles then names the files
+# picked with Open (only those get new names), or is $null for the whole folder.
 function Select-Folder([string]$Start) {
-    $title = 'Open the folder with the files to rename, then click "Use this folder"'
-    try { return [DocRenamer.FolderPicker]::Pick([IntPtr]::Zero, $title, $Start) }
+    $title = 'Open the folder, then click "Use this folder" for all its files - or pick files and click Open'
+    $script:PickedFiles = $null
+    try {
+        $folder = [DocRenamer.FolderPicker]::Pick([IntPtr]::Zero, $title, $Start)
+        $script:PickedFiles = [DocRenamer.FolderPicker]::PickedFiles
+        return $folder
+    }
     catch {
         $d = New-Object System.Windows.Forms.FolderBrowserDialog
         $d.Description = $title
@@ -561,8 +659,9 @@ function Invoke-ReadingWithProgress($Items) {
 # ---------------------------------------------------------------- the choices and the list of old and new names
 
 # $Known: the files of this folder already read, by full path (from an earlier
-# visit to this folder), or $null
-function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [hashtable]$Known) {
+# visit to this folder), or $null. $Picked: files were picked in the folder
+# window, so only those are ticked, and files listed later start unticked too.
+function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [hashtable]$Known, [bool]$Picked) {
     $form = New-Window 'Document Renamer'
 
     # The window, from top to bottom: the folder and which files, the three
@@ -575,8 +674,17 @@ function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [
     Add-Row $page $top
 
     Add-Row $top (New-Label 'Rename the files in this folder' -Bold -Size 12) -Wide
+    # No folder yet (when the app starts): the folder button says what to do first
+    $noFolder = -not $Folder
+    $chooseFirst = 'Choose a folder first: click "Choose a folder..." at the top of the window.'
     $changeBtn = New-Button 'Change folder...'
-    Add-Row $top (New-Label 'Folder:') (New-Strip (New-Label $Folder -Width 760) $changeBtn)
+    $folderText = $Folder
+    if ($noFolder) {
+        $changeBtn.Text = 'Choose a folder...'
+        $changeBtn.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+        $folderText = 'No folder chosen yet. Click "Choose a folder..." to pick the folder, or just some of its files.'
+    }
+    Add-Row $top (New-Label 'Folder:') (New-Strip (New-Label $folderText -Width 760) $changeBtn)
     $docsRadio = New-Radio 'Word and text documents (.rtf, .doc, .docx, .txt)' ($Last.FileSet -ne 'All')
     $allRadio = New-Radio 'All files' ($Last.FileSet -eq 'All')
     Add-Row $top (New-Label 'Files:') (New-Strip $docsRadio $allRadio)
@@ -619,8 +727,8 @@ function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [
     $g3 = New-Group '3. Add to it'
     $prefixBox = New-TextBox $Last.Prefix 170
     $suffixBox = New-TextBox $Last.Suffix 170
-    Add-Row $g3.Tag (New-Label 'Before the name:') $prefixBox
-    Add-Row $g3.Tag (New-Label 'After the name:') $suffixBox
+    Add-Row $g3.Tag (New-Label 'Before the name (prefix):') $prefixBox
+    Add-Row $g3.Tag (New-Label 'After the name (suffix):') $suffixBox
     $infoBox = New-Choice @(@('None', 'nothing'), @('Created', 'date created'), @('Modified', 'date modified'), @('Today', "today's date"),
         @('Taken', 'date taken (photos, videos)'), @('Author', 'author (Word documents)'), @('Title', 'title (Word documents)'),
         @('Folder', 'the folder name')) $Last.Info 190
@@ -652,12 +760,20 @@ function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [
     $list.FullRowSelect = $true
     $list.HeaderStyle = 'Nonclickable'
     $list.ShowItemToolTips = $true
+    $list.CheckBoxes = $true
     $list.Size = New-Object System.Drawing.Size($wide, 250)
-    $list.Margin = New-Object System.Windows.Forms.Padding(3, 10, 3, 3)
+    $list.Margin = New-Object System.Windows.Forms.Padding(3, 4, 3, 3)
     $noteWidth = [Math]::Max(250, $wide - 690)
     [void]$list.Columns.Add('Name now', 310)
     [void]$list.Columns.Add('New name', 350)
     [void]$list.Columns.Add('Note', $noteWidth)
+    # Which files: tick boxes in the list, with buttons to tick or untick them all
+    $tickAllBtn = New-Button 'Tick all'
+    $untickAllBtn = New-Button 'Untick all'
+    $tickHint = New-Label 'Only ticked files get new names. Untick a file to leave it out.'
+    $tickRow = New-Strip $tickAllBtn $untickAllBtn $tickHint
+    $tickRow.Margin = New-Object System.Windows.Forms.Padding(0, 10, 0, 0)
+    Add-Row $page $tickRow
     Add-Row $page $list
     $countLabel = New-Label '' -Width $wide
     Add-Row $page $countLabel
@@ -705,10 +821,12 @@ function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [
     $form.CancelButton = $cancelBtn
 
     $existing = @()
-    try { $existing = @(Get-ChildItem -LiteralPath $Folder -Force | ForEach-Object { $_.Name }) } catch {}
+    if (-not $noFolder) { try { $existing = @(Get-ChildItem -LiteralPath $Folder -Force | ForEach-Object { $_.Name }) } catch {} }
     # Files already read keep their text when the list switches between documents and all files
     if (-not $Known) { $Known = @{} }
-    $state = @{ Items = $Items; Known = $Known; Plan = $null; Mode = 'Copy'; Options = $null; Busy = $false; Again = $false }
+    # NewTicked: whether files listed later (such as after choosing "All files") start ticked
+    $state = @{ Items = $Items; Known = $Known; Plan = $null; Mode = 'Copy'; Options = $null; Busy = $false; Again = $false
+                Filling = $false; NewTicked = (-not $Picked) }
     foreach ($it in $Items) { $state.Known[$it.Path] = $it }
 
     # A number box's number as typed so far, so the list follows along while typing
@@ -733,8 +851,11 @@ function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [
     }
 
     $loadItems = {
+        if ($noFolder) { return }
         try {
+            $before = @($state.Known.Keys)
             $state.Items = Merge-KnownItems (Find-Files $Folder -AllFiles:$allRadio.Checked) $state.Known
+            foreach ($it in $state.Items) { if ($before -notcontains $it.Path) { $it.Include = $state.NewTicked } }
         } catch { Show-Message ("The files in this folder could not be listed:`n`n" + $_.Exception.Message) 'OK' 'Warning' | Out-Null }
     }
 
@@ -742,6 +863,7 @@ function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [
     # or the author, title and date taken
     $ensureData = {
         param($o)
+        if ($noFolder) { return }
         if ($o.Source -eq 'Text' -and @($state.Items | Where-Object { Test-NeedsReading $_ }).Count) {
             $form.Enabled = $false
             try { Invoke-ReadingWithProgress $state.Items } finally { $form.Enabled = $true; $form.Activate() }
@@ -757,35 +879,70 @@ function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [
         & $ensureData $o
         $mode = 'Copy'
         if ($renameRadio.Checked) { $mode = 'Rename' }
-        $plan = Get-RenamePlan -Items $state.Items -Options $o -Mode $mode -ExistingNames $existing -Folder $Folder
+        $plan = @()
+        if (-not $noFolder) { $plan = Get-RenamePlan -Items $state.Items -Options $o -Mode $mode -ExistingNames $existing -Folder $Folder }
         $state.Plan = $plan; $state.Mode = $mode; $state.Options = $o
-        $list.BeginUpdate()
-        $list.Items.Clear()
-        foreach ($row in $plan) {
-            $lvi = New-Object System.Windows.Forms.ListViewItem($row.Item.Name)
+
+        # What each row shows: the new name (or why there is none), its note, and its colour
+        $rows = foreach ($row in $plan) {
             $note = $row.Note
+            $color = [System.Drawing.SystemColors]::WindowText
             if ($row.Action -eq 'Keep') {
-                if ($mode -eq 'Copy') { [void]$lvi.SubItems.Add('(not copied)') } else { [void]$lvi.SubItems.Add('(keeps its name)') }
-                if ($row.ProblemKind -eq 'Error') { $note = 'could not be read: ' + $note; $lvi.ForeColor = [System.Drawing.Color]::DarkRed }
-                else { $lvi.ForeColor = [System.Drawing.Color]::DimGray }
+                if ($row.ProblemKind -eq 'Unticked') { $newText = '(left out)' }
+                elseif ($mode -eq 'Copy') { $newText = '(not copied)' }
+                else { $newText = '(keeps its name)' }
+                if ($row.ProblemKind -eq 'Error') { $note = 'could not be read: ' + $note; $color = [System.Drawing.Color]::DarkRed }
+                else { $color = [System.Drawing.Color]::DimGray }
             } else {
-                [void]$lvi.SubItems.Add($row.NewName)
-                if ($row.Action -eq 'Same') { $lvi.ForeColor = [System.Drawing.Color]::DimGray }
+                $newText = $row.NewName
+                if ($row.Action -eq 'Same') { $color = [System.Drawing.Color]::DimGray }
             }
-            if ($row.Item.Note -and $o.Source -eq 'Text') {
+            if ($row.Item.Note -and $o.Source -eq 'Text' -and $row.ProblemKind -ne 'Unticked') {
                 if ($note) { $note += '; ' }
                 $note += $row.Item.Note
             }
-            [void]$lvi.SubItems.Add($note)
-            $lvi.ToolTipText = $note
-            [void]$list.Items.Add($lvi)
+            [pscustomobject]@{ Item = $row.Item; NewText = $newText; Note = $note; Color = $color }
         }
-        $list.EndUpdate()
+        $rows = @($rows)
+
+        # The same files in the same order are updated where they are, so ticking a
+        # file doesn't scroll the list back to the top
+        $inPlace = ($list.Items.Count -eq $rows.Count)
+        for ($i = 0; $inPlace -and $i -lt $rows.Count; $i++) { if (-not [object]::ReferenceEquals($list.Items[$i].Tag, $rows[$i].Item)) { $inPlace = $false } }
+        $state.Filling = $true
+        $list.BeginUpdate()
+        try {
+            if (-not $inPlace) { $list.Items.Clear() }
+            for ($i = 0; $i -lt $rows.Count; $i++) {
+                $r = $rows[$i]
+                if ($inPlace) {
+                    $lvi = $list.Items[$i]
+                    $lvi.SubItems[1].Text = $r.NewText
+                    $lvi.SubItems[2].Text = $r.Note
+                } else {
+                    $lvi = New-Object System.Windows.Forms.ListViewItem($r.Item.Name)
+                    [void]$lvi.SubItems.Add($r.NewText)
+                    [void]$lvi.SubItems.Add($r.Note)
+                    $lvi.Tag = $r.Item
+                    [void]$list.Items.Add($lvi)
+                }
+                $lvi.ForeColor = $r.Color
+                $lvi.ToolTipText = $r.Note
+                $ticked = ($false -ne $r.Item.Include)
+                if ($lvi.Checked -ne $ticked) { $lvi.Checked = $ticked }
+            }
+        } finally {
+            $list.EndUpdate()
+            $state.Filling = $false
+        }
 
         $go = @($plan | Where-Object { $_.Action -eq 'Rename' }).Count
         $same = @($plan | Where-Object { $_.Action -eq 'Same' }).Count
-        $keep = @($plan | Where-Object { $_.Action -eq 'Keep' }).Count
-        if (@($plan).Count -eq 0) {
+        $leftOut = @($plan | Where-Object { $_.ProblemKind -eq 'Unticked' }).Count
+        $keep = @($plan | Where-Object { $_.Action -eq 'Keep' }).Count - $leftOut
+        if ($noFolder) {
+            $text = 'No folder chosen yet. Click "Choose a folder..." at the top, and the old and new names show here.'
+        } elseif (@($plan).Count -eq 0) {
             if ($allRadio.Checked) { $text = 'There are no files in this folder.' }
             else { $text = 'There are no Word or text documents in this folder. Choose "All files" at the top to rename other kinds of files.' }
         } elseif ($mode -eq 'Copy') {
@@ -796,6 +953,7 @@ function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [
             if ($same) { $text += ' ' + (Get-Count $same 'file already has its' 'files already have their') + ' new name.' }
             if ($keep) { $text += ' ' + (Get-Count $keep 'file keeps its' 'files keep their') + ' name (the notes say why).' }
         }
+        if ($leftOut) { $text += ' ' + (Get-Count $leftOut 'file is' 'files are') + ' left out (not ticked).' }
         if ($mode -eq 'Copy') {
             $goBtn.Text = 'Save renamed copies'
             $modeNote.Text = 'The copies go into a folder called "renamed" inside this folder. Your original files are not changed. ' +
@@ -839,6 +997,28 @@ function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [
         $n.Add_ValueChanged({ $numberTick.Checked = $true; & $refresh })
         $n.Add_KeyUp({ $numberTick.Checked = $true; & $refreshSoon })
     }
+    # Ticking or unticking a file redoes the list a moment later, so several
+    # quick clicks are done together
+    $list.Add_ItemChecked({
+        param($sender, $e)
+        if ($state.Filling -or -not $e.Item.Tag) { return }
+        if ($e.Item.Tag.Include -ne $e.Item.Checked) {
+            $e.Item.Tag.Include = $e.Item.Checked
+            & $refreshSoon
+        }
+    })
+    $tickAllBtn.Add_Click({
+        if ($noFolder) { Show-Message $chooseFirst 'OK' 'Information' | Out-Null; return }
+        foreach ($it in $state.Items) { $it.Include = $true }
+        $state.NewTicked = $true
+        & $refresh
+    })
+    $untickAllBtn.Add_Click({
+        if ($noFolder) { Show-Message $chooseFirst 'OK' 'Information' | Out-Null; return }
+        foreach ($it in $state.Items) { $it.Include = $false }
+        $state.NewTicked = $false
+        & $refresh
+    })
     & $refresh
 
     # On a small screen the window scrolls instead of running off the bottom
@@ -854,7 +1034,7 @@ function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [
             }
         } catch {}
     })
-    $form.Add_Shown({ $goBtn.Focus() })
+    $form.Add_Shown({ if ($noFolder) { $changeBtn.Focus() } else { $goBtn.Focus() } })
 
     $readFileSet = { if ($allRadio.Checked) { 'All' } else { 'Docs' } }
     # The choices go along to the next folder
@@ -863,11 +1043,16 @@ function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [
         $form.DialogResult = 'Retry'
     })
     $goBtn.Add_Click({
+        if ($noFolder) { Show-Message $chooseFirst 'OK' 'Information' | Out-Null; return }
         & $refresh   # the list as it is now, in case a box was still being typed in
         $plan = $state.Plan
         $go = @($plan | Where-Object { $_.Action -eq 'Rename' }).Count
         if ($go -eq 0) {
-            Show-Message 'With these choices, no file gets a new name. The Note column in the list says why for each file.' 'OK' 'Information' | Out-Null
+            if (@($plan).Count -and -not @($plan | Where-Object { $_.ProblemKind -ne 'Unticked' }).Count) {
+                Show-Message 'No file is ticked. Tick the files to rename in the list, or click "Tick all".' 'OK' 'Information' | Out-Null
+            } else {
+                Show-Message 'With these choices, no file gets a new name. The Note column in the list says why for each file.' 'OK' 'Information' | Out-Null
+            }
             return
         }
         if ($state.Mode -eq 'Rename') {
@@ -1008,18 +1193,35 @@ try {
     [DocRenamer.MessageFilter]::Register()
     $last = Get-SavedSettings
     $current = $Folder
+    # Started without a folder, the main window opens first, with no folder chosen
+    # yet. Cancel in the folder window with no folder to go back to returns there too.
+    $showEmpty = -not $current
     # After "Change folder...", Cancel - or "No" when the new folder has no files -
     # goes back to the folder before, with the files already read there
     $returnTo = $null; $returnKnown = $null
     $known = $null
+    $picked = $null   # the files picked in the folder window, or $null for all of them
     while ($true) {
+        if ($showEmpty) {
+            $showEmpty = $false
+            $choice = Show-PreviewForm '' @() $last $null $null $false
+            if ($null -eq $choice) { break }
+            # "Choose a folder...": the choices made so far go along to the folder
+            foreach ($k in @($choice.Options.Keys)) { $last[$k] = $choice.Options[$k] }
+            $last.FileSet = $choice.FileSet
+            $current = $null
+        }
         if (-not $current) {
             $current = Select-Folder $last.LastFolder
-            if (-not $current -and $returnTo) { $current = $returnTo; $known = $returnKnown; $returnTo = $null }
-            if (-not $current) { break }
+            $picked = $script:PickedFiles
+            if (-not $current -and $returnTo) { $current = $returnTo; $known = $returnKnown; $returnTo = $null; $picked = $null }
+            if (-not $current) { $showEmpty = $true; continue }
         }
+        # A picked photo or other file needs the list of all files
+        if ($picked -and (Test-NeedsAllFiles $picked)) { $last.FileSet = 'All' }
         $items = Find-Files $current -AllFiles:($last.FileSet -eq 'All')
         if ($known) { $items = Merge-KnownItems $items $known }
+        if ($picked) { [void](Set-PickedFiles $items $picked) }
         $history = Get-LastRenaming $current
         $anyFile = $null -ne (Get-ChildItem -LiteralPath $current -File -ErrorAction SilentlyContinue | Select-Object -First 1)
         if (-not $anyFile -and -not $history) {
@@ -1030,13 +1232,15 @@ try {
             $known = $null
             if ($answer -eq 'Yes') { continue }
             if ($returnTo) { $current = $returnTo; $known = $returnKnown; $returnTo = $null; continue }
-            break
+            $showEmpty = $true
+            continue
         }
         # Documents are read now when their text is wanted; otherwise only if the choice changes to it
         if ($last.Source -ne 'Name' -and $last.Source -ne 'Fixed') { Invoke-ReadingWithProgress $items }
         $returnTo = $null; $returnKnown = $null
-        $choice = Show-PreviewForm $current $items $last $history $known
+        $choice = Show-PreviewForm $current $items $last $history $known ([bool]$picked)
         $known = $null
+        $picked = $null
         if ($null -eq $choice) { break }
         if ($choice.Action -eq 'ChangeFolder') {
             foreach ($k in @($choice.Options.Keys)) { $last[$k] = $choice.Options[$k] }
