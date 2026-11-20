@@ -34,6 +34,8 @@ START IT
      in each folder: open the folder, then click "Use this folder".
      (Clicking one document there and then Open adds just that document.)
    - Or drag documents or folders into the list.
+   Both windows open in your Documents folder (or on the Desktop if there
+   is no Documents folder).
    "Remove from the list" and "Clear the list" take them out of the list
    (the files themselves are not touched).
 

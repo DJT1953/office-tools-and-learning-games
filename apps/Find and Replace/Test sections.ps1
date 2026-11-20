@@ -17,6 +17,13 @@ function Test-Same([string]$Name, $Got, $Want) {
     "        got  [$(Show-Plain ([string]$Got))]"
     "        want [$(Show-Plain ([string]$Want))]"
 }
+"Where the windows for choosing documents and folders open"
+$gone = Join-Path $env:TEMP ('no such folder ' + [guid]::NewGuid())
+Test-Same 'the Documents folder when there is one' (Get-StartFolder @($AppDir, $env:TEMP)) $AppDir
+Test-Same 'the Desktop when there is no Documents folder' (Get-StartFolder @($gone, $env:TEMP)) $env:TEMP
+Test-Same 'nothing (Windows picks) when neither is there' (Get-StartFolder @($gone, '')) ''
+Test-Same 'on this PC: the Documents folder' (Get-StartFolder) ([Environment]::GetFolderPath('MyDocuments'))
+
 function Get-Off { return @{ On = $false; Find = ''; Replace = ''; Include = $false; MatchCase = $false; WholeWords = $false; Which = 'First'; Source = 'Text'; File = '' } }
 function New-Settings([string]$From, [string]$To, [string]$Keep = 'both', [bool]$MatchCase = $false) {
     return @{

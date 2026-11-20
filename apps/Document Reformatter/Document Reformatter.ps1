@@ -469,8 +469,16 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
     $folderPanel.AutoSize = $true
     $folderPanel.WrapContents = $false
     $folderPanel.Margin = New-Object System.Windows.Forms.Padding(0)
-    $folderPanel.Controls.Add((New-Label $Folder -Width 700))
+    # No folder yet (when the app starts): the folder button says what to do first
+    $noFolder = -not $Folder
+    $folderText = $Folder
     $changeBtn = New-Button 'Change folder...'
+    if ($noFolder) {
+        $folderText = 'No folder chosen yet. Click "Choose a folder..." to pick the folder with your documents.'
+        $changeBtn.Text = 'Choose a folder...'
+        $changeBtn.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+    }
+    $folderPanel.Controls.Add((New-Label $folderText -Width 700))
     $folderPanel.Controls.Add($changeBtn)
     Add-Row $top (New-Label 'Folder:') $folderPanel
 
@@ -484,6 +492,7 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
     $found += ': ' + ($counts -join ', ')
     if ($skipped.Count -eq 1) { $found += "`n1 other file will be skipped (the summary at the end says why)." }
     elseif ($skipped.Count -gt 1) { $found += "`n$($skipped.Count) other files will be skipped (the summary at the end says why)." }
+    if ($noFolder) { $found = 'Nothing yet. Make your choices below before or after choosing the folder.' }
     Add-Row $top (New-Label 'Found:') (New-Label $found -Width 800)
 
     $list = New-Object System.Windows.Forms.ListBox
@@ -664,8 +673,27 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
     # Always open with the folder line at the top showing
     $form.Add_Shown({ if ($scroll.Parent) { $scroll.AutoScrollPosition = New-Object System.Drawing.Point(0, 0) } })
 
-    $changeBtn.Add_Click({ $form.DialogResult = 'Retry' })
+    # The choices as they are now. A font or size that isn't usable yet keeps the last one.
+    $readChoices = {
+        $size = 0.0
+        $typed = $sizeBox.Text.Trim().Replace(',', '.')
+        if (-not [double]::TryParse($typed, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$size) -or $size -lt 1 -or $size -gt 400) { $size = $Last.FontSize }
+        $name = $fontBox.Text.Trim()
+        if (-not $name) { $name = $Last.FontName }
+        $headings = 'Keep'
+        if ($sameRadio.Checked) { $headings = 'Same' }
+        return @{ FontName = $name; FontSize = $size; Headings = $headings
+                  LineSpacing = (Get-ChoiceKey $lineBox); SpaceBetween = (Get-ChoiceKey $spaceBox)
+                  Indent = (Get-ChoiceKey $indentBox); Align = (Get-ChoiceKey $alignBox); TextColour = (Get-ChoiceKey $colourBox)
+                  RemoveHighlight = $highlightBox.Checked; ClearEmphasis = $emphasisBox.Checked; EvenSpacing = $spacingBox.Checked
+                  RemoveEmptyLines = $emptyBox.Checked; WidowControl = $widowBox.Checked; RemoveLinks = $linkBox.Checked
+                  SplitParagraphs = $splitBox.Checked; JoinLines = $joinBox.Checked
+                  PaperSize = (Get-ChoiceKey $paperBox); Margins = (Get-ChoiceKey $marginBox) }
+    }
+    # The choices go along to the folder chosen next
+    $changeBtn.Add_Click({ $script:FormChoices = (& $readChoices); $form.DialogResult = 'Retry' })
     $startBtn.Add_Click({
+        if ($noFolder) { Show-Message 'Choose a folder first: click "Choose a folder..." at the top of the window.' 'OK' 'Information' | Out-Null; return }
         $name = $fontBox.Text.Trim()
         if (-not $name) { Show-Message 'Please choose a font.' 'OK' 'Warning' | Out-Null; return }
         $size = 0.0
@@ -678,15 +706,7 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
             $answer = Show-Message ("The font ""$name"" is not installed on this PC, so Word would show a different font instead.`n`nUse it anyway?") 'YesNo' 'Warning'
             if ($answer -ne 'Yes') { return }
         }
-        $headings = 'Keep'
-        if ($sameRadio.Checked) { $headings = 'Same' }
-        $form.Tag = @{ FontName = $name; FontSize = $size; Headings = $headings
-                       LineSpacing = (Get-ChoiceKey $lineBox); SpaceBetween = (Get-ChoiceKey $spaceBox)
-                       Indent = (Get-ChoiceKey $indentBox); Align = (Get-ChoiceKey $alignBox); TextColour = (Get-ChoiceKey $colourBox)
-                       RemoveHighlight = $highlightBox.Checked; ClearEmphasis = $emphasisBox.Checked; EvenSpacing = $spacingBox.Checked
-                       RemoveEmptyLines = $emptyBox.Checked; WidowControl = $widowBox.Checked; RemoveLinks = $linkBox.Checked
-                       SplitParagraphs = $splitBox.Checked; JoinLines = $joinBox.Checked
-                       PaperSize = (Get-ChoiceKey $paperBox); Margins = (Get-ChoiceKey $marginBox) }
+        $form.Tag = & $readChoices        # the font and size were checked just above
         $form.DialogResult = 'OK'
     })
 
@@ -865,14 +885,26 @@ try {
     $fonts = Get-FontNames
     $last = Get-SavedSettings
     $current = $Folder
+    # Started without a folder, the main window opens first, with no folder chosen yet.
+    # Cancel in the folder window with no folder to go back to returns there too.
+    $showEmpty = -not $current
     # After "Change folder...", Cancel - or "No" when the new folder has no
     # documents - goes back to the folder before
     $returnTo = $null
+    # The choices made in the window, carried along by "Change folder..."
+    $carry = { if ($script:FormChoices) { foreach ($k in @($script:FormChoices.Keys)) { $last[$k] = $script:FormChoices[$k] } }; $script:FormChoices = $null }
     while ($true) {
+        if ($showEmpty) {
+            $showEmpty = $false
+            $choice = Show-SettingsForm '' @() $last $fonts
+            if ($choice -ne 'ChangeFolder') { break }     # Cancel or X (Start needs a folder first)
+            & $carry
+            $current = $null
+        }
         if (-not $current) {
-            $current = Select-Folder $last.LastFolder
+            $current = Select-Folder (Get-StartFolder)
             if (-not $current -and $returnTo) { $current = $returnTo; $returnTo = $null }
-            if (-not $current) { break }
+            if (-not $current) { $showEmpty = $true; continue }
         }
         $items = Find-Documents $current
         if (@($items | Where-Object { -not $_.SkipReason }).Count -eq 0) {
@@ -882,11 +914,12 @@ try {
             $current = $null
             if ($answer -eq 'Yes') { continue }
             if ($returnTo) { $current = $returnTo; $returnTo = $null; continue }
-            break
+            $showEmpty = $true
+            continue
         }
         $returnTo = $null
         $choice = Show-SettingsForm $current $items $last $fonts
-        if ($choice -eq 'ChangeFolder') { $last.LastFolder = $current; $returnTo = $current; $current = $null; continue }
+        if ($choice -eq 'ChangeFolder') { & $carry; $last.LastFolder = $current; $returnTo = $current; $current = $null; continue }
         if ($null -eq $choice) { break }
         foreach ($k in @($choice.Keys)) { $last[$k] = $choice[$k] }
         $last.LastFolder = $current

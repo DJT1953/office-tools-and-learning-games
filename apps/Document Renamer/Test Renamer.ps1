@@ -21,6 +21,13 @@ function Check([string]$Label, $Got, $Want) {
     else { $script:Failures++; "FAIL  $Label`n        got:  [$Got]`n        want: [$Want]" }
 }
 
+# Where the folder window opens
+$gone = Join-Path $env:TEMP ('no such folder ' + [guid]::NewGuid())
+Check 'start folder: Documents when there is one' (Get-StartFolder @($AppDir, $env:TEMP)) $AppDir
+Check 'start folder: the Desktop when there is no Documents folder' (Get-StartFolder @($gone, $env:TEMP)) $env:TEMP
+Check 'start folder: nothing (Windows picks) when neither is there' (Get-StartFolder @($gone, '')) ''
+Check 'start folder on this PC: the Documents folder' (Get-StartFolder) ([Environment]::GetFolderPath('MyDocuments'))
+
 # The new names a plan gives, in its order, as "old>new" (or "old>(keep)")
 function Get-PlanText($Plan) {
     return (@($Plan | ForEach-Object { if ($_.Action -eq 'Keep') { $_.Item.Name + '>(keep)' } else { $_.Item.Name + '>' + $_.NewName } }) -join ' | ')

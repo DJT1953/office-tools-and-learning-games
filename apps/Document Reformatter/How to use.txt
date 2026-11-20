@@ -2,18 +2,26 @@
 ====================================
 
 START IT
-  Double-click "Document Reformatter" on your Desktop.
-  (The same shortcut is also in this folder.)
+  Double-click "Document Reformatter" on your Desktop. (The same shortcut
+  is also in this folder, and in the Start menu if you installed it.)
+  If you unzipped it instead of installing it, first double-click
+  "Create desktop shortcut" in this folder: it makes the shortcut.
+  The main window opens with all the settings showing and no folder
+  chosen yet. You can choose the settings (step 2) before or after
+  choosing the folder.
 
 1. CHOOSE A FOLDER
-   A window like Word's Open window shows your folders and the files in
-   them. Open the folder that holds your .rtf, .doc, .docx and .txt files,
-   then click "Use this folder" (next to Open). Other ways that work:
-   click a folder once to highlight it, then "Use this folder"; or click
-   any file in the folder, then Open.
+   Click "Choose a folder..." at the top of the main window (once a
+   folder is chosen, the button says "Change folder..."). A window like
+   Word's Open window shows your folders and the files in them. It opens
+   in your Documents folder (or on the Desktop if there is no Documents
+   folder). Open the folder that holds your
+   .rtf, .doc, .docx and .txt files, then click "Use this folder" (next
+   to Open). Other ways that work: click a folder once to highlight it,
+   then "Use this folder"; or click any file in the folder, then Open.
    Only files directly in that folder are used, not files in folders
-   inside it. "Change folder..." opens the same window; Cancel takes you
-   back to the folder you were on.
+   inside it. Cancel takes you back to the main window and the folder
+   you were on (if any), with your settings kept.
 
 2. CHOOSE THE SETTINGS (they apply to every file in the folder)
    Left side:

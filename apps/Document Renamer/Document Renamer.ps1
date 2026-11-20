@@ -1212,7 +1212,7 @@ try {
             $current = $null
         }
         if (-not $current) {
-            $current = Select-Folder $last.LastFolder
+            $current = Select-Folder (Get-StartFolder)
             $picked = $script:PickedFiles
             if (-not $current -and $returnTo) { $current = $returnTo; $known = $returnKnown; $returnTo = $null; $picked = $null }
             if (-not $current) { $showEmpty = $true; continue }

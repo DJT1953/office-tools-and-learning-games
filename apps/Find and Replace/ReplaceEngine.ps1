@@ -21,6 +21,16 @@ $script:ShowKept   = 150   # characters of the text that stays, next to it
 $script:MaxHits    = 100000
 
 
+# Where the windows for choosing documents and folders open: the Documents folder,
+# or the Desktop if there is no Documents folder ('' if neither exists, and Windows picks)
+function Get-StartFolder([string[]]$Candidates = @([Environment]::GetFolderPath('MyDocuments'), [Environment]::GetFolderPath('Desktop'))) {
+    foreach ($p in $Candidates) {
+        if ($p -and (Test-Path -LiteralPath $p -PathType Container)) { return $p }
+    }
+    return ''
+}
+
+
 # ---------------------------------------------------------------- the documents
 
 function Test-DocFile([string]$Path) {

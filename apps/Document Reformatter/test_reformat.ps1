@@ -11,6 +11,14 @@ function Check([bool]$ok, [string]$what) {
     if ($ok) { Write-Host "  ok    $what" } else { Write-Host "  FAIL  $what"; $script:failures++ }
 }
 
+Write-Host 'Where the folder window opens'
+$here = $PSScriptRoot
+$gone = Join-Path $env:TEMP ('no such folder ' + [guid]::NewGuid())
+Check ((Get-StartFolder @($here, $env:TEMP)) -eq $here) 'the Documents folder when there is one'
+Check ((Get-StartFolder @($gone, $env:TEMP)) -eq $env:TEMP) 'the Desktop when there is no Documents folder'
+Check ((Get-StartFolder @($gone, '')) -eq '') 'nothing (Windows picks) when neither is there'
+Check ((Get-StartFolder) -eq [Environment]::GetFolderPath('MyDocuments')) 'on this PC: the Documents folder'
+
 $q = [char]0x201C; $qq = [char]0x201D   # curly opening and closing quotes
 # Made-up sentences; paragraph p, sentence s
 function Sentence([int]$p, [int]$s) {

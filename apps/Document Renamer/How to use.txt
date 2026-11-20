@@ -25,8 +25,8 @@ START IT
    Click "Choose a folder..." at the top of the main window (once a
    folder is chosen, the button says "Change folder..."). A window like
    Word's Open window shows your folders and the files in them. It opens
-   in the folder you used last time. Open the folder that holds your
-   files, then either:
+   in your Documents folder (or on the Desktop if there is no Documents
+   folder). Open the folder that holds your files, then either:
    - click "Use this folder" (next to Open) to use all its files, or
    - pick just the files you want (hold Ctrl and click each one), then
      click Open. Only those files are ticked in the list.

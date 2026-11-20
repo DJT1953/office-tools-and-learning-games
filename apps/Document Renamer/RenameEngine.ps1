@@ -45,6 +45,15 @@ $script:DefaultOptions = @{
 
 # ---------------------------------------------------------------- finding files
 
+# Where the folder window opens: the Documents folder, or the Desktop if there is
+# no Documents folder ('' if neither exists, and Windows picks)
+function Get-StartFolder([string[]]$Candidates = @([Environment]::GetFolderPath('MyDocuments'), [Environment]::GetFolderPath('Desktop'))) {
+    foreach ($p in $Candidates) {
+        if ($p -and (Test-Path -LiteralPath $p -PathType Container)) { return $p }
+    }
+    return ''
+}
+
 # Each file found gets these, filled in when they are needed:
 #   Skip                          why it is never renamed (Word's temporary files), or $null
 #   Text, TextRead                the start of a document's words, once reading was tried

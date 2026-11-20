@@ -31,6 +31,15 @@ $script:WorkRoot      = Join-Path ([IO.Path]::GetTempPath()) 'DocumentReformatte
 
 # ---------------------------------------------------------------- finding files
 
+# Where the folder window opens: the Documents folder, or the Desktop if there is
+# no Documents folder ('' if neither exists, and Windows picks)
+function Get-StartFolder([string[]]$Candidates = @([Environment]::GetFolderPath('MyDocuments'), [Environment]::GetFolderPath('Desktop'))) {
+    foreach ($p in $Candidates) {
+        if ($p -and (Test-Path -LiteralPath $p -PathType Container)) { return $p }
+    }
+    return ''
+}
+
 function Find-Documents {
     param([string]$Folder)
     $files = @(Get-ChildItem -LiteralPath $Folder -File -ErrorAction Stop |

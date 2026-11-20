@@ -1136,12 +1136,13 @@ function Show-MainForm([hashtable]$Last, [string[]]$StartPaths) {
         $d.Title = 'Choose the documents to change'
         $d.Multiselect = $true
         $d.Filter = 'Documents (*.docx, *.doc, *.rtf, *.txt)|*.docx;*.doc;*.rtf;*.txt|All files (*.*)|*.*'
-        if ($Last.LastFolder -and (Test-Path -LiteralPath $Last.LastFolder)) { $d.InitialDirectory = $Last.LastFolder }
+        $start = Get-StartFolder
+        if ($start) { $d.InitialDirectory = $start }
         if ($d.ShowDialog($form) -ne 'OK') { return }
         & $afterAdd (Add-DocPaths $list $d.FileNames)
     })
     $folderBtn.Add_Click({
-        $f = Select-Folder $Last.LastFolder $form
+        $f = Select-Folder (Get-StartFolder) $form
         if ($f) { & $afterAdd (Add-DocPaths $list @($f)) }
     })
     $list.Add_DragEnter({
@@ -1171,7 +1172,8 @@ function Show-MainForm([hashtable]$Last, [string[]]$StartPaths) {
             if ($sec.Part -eq 'Begin') { $d.Title = 'Choose the document that becomes the new beginning' }
             else { $d.Title = 'Choose the document that becomes the new ending' }
             $d.Filter = 'Documents (*.docx, *.doc, *.rtf, *.txt)|*.docx;*.doc;*.rtf;*.txt'
-            $start = $Last.LastFolder
+            # The folder of the document already chosen, if any; otherwise Documents (or the Desktop)
+            $start = Get-StartFolder
             if ($sec.FileLabel.Tag) { $start = Split-Path -Parent $sec.FileLabel.Tag }
             if ($start -and (Test-Path -LiteralPath $start)) { $d.InitialDirectory = $start }
             if ($d.ShowDialog($form) -eq 'OK') { Set-ChosenFile $sec $d.FileName }
