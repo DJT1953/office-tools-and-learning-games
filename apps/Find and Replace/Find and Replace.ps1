@@ -1200,7 +1200,12 @@ function Show-MainForm([hashtable]$Last, [string[]]$StartPaths) {
     $form.Add_Shown({
         # So that "Special" adds to the end of remembered text, not in front of it
         foreach ($box in @($ui.WordsFind, $ui.WordsReplace, $ui.Begin.Find, $ui.Begin.Replace, $ui.BetweenFrom, $ui.BetweenTo, $ui.End.Find, $ui.End.Replace)) { $box.SelectionStart = $box.TextLength }
-        if ($list.Items.Count -eq 0) { $addBtn.Focus() } else { $previewBtn.Focus() }
+        # A window that scrolls (small screen) jumps to whatever has the focus, so there the
+        # focus goes to the list at the top, and the window starts at its top.
+        if ($list.Items.Count -eq 0) { $addBtn.Focus() }
+        elseif ($form.AutoScroll) { $list.Focus() }
+        else { $previewBtn.Focus() }
+        if ($form.AutoScroll) { $form.AutoScrollPosition = New-Object System.Drawing.Point(0, 0) }
     })
     [void]$form.ShowDialog()
     $form.Dispose()
