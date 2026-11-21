@@ -294,6 +294,7 @@ class EditorWindow(QMainWindow):
 
         self.build_window()
         self.build_menu()
+        self.updates_button = vp.add_updates_button(self)    # at the right end of the menu bar
         self.build_shortcuts()
         self.player.positionChanged.connect(self.position_changed)
         self.player.mediaStatusChanged.connect(self.media_status_changed)
@@ -1302,11 +1303,27 @@ class EditorWindow(QMainWindow):
         box.addButton(QMessageBox.StandardButton.Ok)
         box.exec()
         if box.clickedButton() is play:
-            quiet = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
-            python = quiet if os.path.isfile(quiet) else sys.executable
-            subprocess.Popen([python, vp.__file__, path])
+            command = play_command(path)
+            if command:
+                subprocess.Popen(command)
+            else:
+                os.startfile(path)      # Windows' own player for this kind of file
         elif box.clickedButton() is show:
             subprocess.Popen(f'explorer /select,"{os.path.normpath(path)}"')
+
+
+def play_command(path):
+    """How "Play it" opens a saved file in the Video Player. Run as a .py file, that is
+    Python with video_player.py. A built copy (the .exe from Setup) has no Python, so it
+    uses the Video Player installed beside it in DJT_Code, or returns None to let
+    Windows' own player open the file."""
+    if getattr(sys, "frozen", False):
+        apps = os.path.dirname(os.path.dirname(sys.executable))
+        player = os.path.join(apps, "Video Player", "Video Player.exe")
+        return [player, path] if os.path.isfile(player) else None
+    quiet = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    python = quiet if os.path.isfile(quiet) else sys.executable
+    return [python, vp.__file__, path]
 
 
 def pick_extension(path, chosen, filters, extensions, suggested):

@@ -21,6 +21,8 @@ import traceback
 
 TITLE = "Proofreader"
 NEEDS = {"PySide6": "PySide6", "comtypes": "comtypes", "docx": "python-docx"}
+# The "Check for updates" button opens this page, which has the newest version of every program.
+UPDATES_PAGE = "https://djt1953.github.io/office-tools-and-learning-games/"
 
 
 def tk_message(kind, text):
@@ -304,8 +306,14 @@ class Window(QWidget):
     # ------------------------------------------------------------ layout
     def build(self):
         outer = QVBoxLayout(self)
-        outer.addWidget(QLabel("Documents and folders to proofread  "
-                               "(Word .doc and .docx, .rtf, .txt). You can also drag them here."))
+        heading = QHBoxLayout()
+        heading.addWidget(QLabel("Documents and folders to proofread  "
+                                 "(Word .doc and .docx, .rtf, .txt). You can also drag them here."), 1)
+        # In the top right corner
+        self.updates_button = self.button("Check for updates", self.check_for_updates, heading)
+        self.updates_button.setToolTip("Open the web page with the newest version of the "
+                                       "Proofreader and the other programs")
+        outer.addLayout(heading)
         top = QHBoxLayout()
         self.list = QListWidget()
         self.list.setSelectionMode(QListWidget.ExtendedSelection)
@@ -398,6 +406,12 @@ class Window(QWidget):
         button.clicked.connect(action)
         layout.addWidget(button)
         return button
+
+    def check_for_updates(self):
+        """Opens UPDATES_PAGE in the web browser, or says where to go when that can't be done."""
+        if not QDesktopServices.openUrl(QUrl(UPDATES_PAGE)):
+            QMessageBox.information(self, TITLE, "The web browser could not be opened. To check "
+                                    f"for a newer version, go to:\n\n{UPDATES_PAGE}")
 
     # ------------------------------------------------------------ the list
     def paths(self):

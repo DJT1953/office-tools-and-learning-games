@@ -468,6 +468,36 @@ function New-Button([string]$Text, [switch]$Bold) {
     return $b
 }
 
+# The "Check for updates" button opens this page, which has the newest version of every program
+$script:UpdatesPage = 'https://djt1953.github.io/office-tools-and-learning-games/'
+
+# Opens the page in the web browser, or says where to go when that can't be done.
+# The checks set CHECK_UPDATES_TEST_FILE to see where it goes without opening a browser.
+function Open-UpdatesPage {
+    if ($env:CHECK_UPDATES_TEST_FILE) { Set-Content -LiteralPath $env:CHECK_UPDATES_TEST_FILE -Value $script:UpdatesPage; return }
+    try { Start-Process $script:UpdatesPage }
+    catch { Show-Message ("The web browser could not be opened. To check for a newer version, go to:`n`n" + $script:UpdatesPage) | Out-Null }
+}
+
+# The row across the top of a window: its heading on the left, "Check for updates" in the right corner
+function New-HeadingRow($Heading) {
+    $row = New-Object System.Windows.Forms.TableLayoutPanel
+    $row.ColumnCount = 2
+    $row.RowCount = 1
+    $row.AutoSize = $true
+    $row.AutoSizeMode = 'GrowAndShrink'
+    $row.Dock = 'Fill'            # as wide as the window
+    $row.Margin = New-Object System.Windows.Forms.Padding(0)
+    [void]$row.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('Percent', 100)))
+    [void]$row.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('AutoSize')))
+    $row.Controls.Add($Heading, 0, 0)
+    $updatesBtn = New-Button 'Check for updates'
+    $updatesBtn.Anchor = 'Top, Right'
+    $updatesBtn.Add_Click({ Open-UpdatesPage })
+    $row.Controls.Add($updatesBtn, 1, 0)
+    return $row
+}
+
 function New-Check([string]$Text, [switch]$Bold) {
     $c = New-Object System.Windows.Forms.CheckBox
     $c.Text = $Text
@@ -1018,7 +1048,7 @@ function Show-MainForm([hashtable]$Last, [string[]]$StartPaths) {
     $form = New-Window 'Find and Replace'
     $page = New-Grid 2
     $form.Controls.Add($page)
-    Add-Row $page (New-Label 'Find and replace in your documents' -Bold -Size 13) -Wide
+    Add-Row $page (New-HeadingRow (New-Label 'Find and replace in your documents' -Bold -Size 13)) -Wide
     $left = New-Grid 1
     $left.Margin = New-Object System.Windows.Forms.Padding(0, 0, 18, 0)
     $right = New-Grid 1

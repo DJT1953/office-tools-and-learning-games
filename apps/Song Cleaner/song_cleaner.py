@@ -1,3 +1,7 @@
+# Song Cleaner - Copyright (C) 2026 DJThomas
+# Free software: you can share and change it under the GNU General Public License,
+# version 3 or (at your option) any later version. It comes with NO WARRANTY.
+# See licenses\GPL-3.0.txt. The same applies to every song_cleaner_*.py file.
 """Song Cleaner: tidies a folder of songs recorded from the radio.
 
 1. Scan reads every MP3 in the folder (nothing is changed).
@@ -24,17 +28,20 @@ if __name__ == "__main__":
     song_cleaner_setup.offer_missing()
 
 from PySide6.QtCore import QLockFile, QSettings, Qt, QThread, QTimer, QUrl, Signal
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtGui import QColor, QDesktopServices, QPalette
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout,
                                QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox,
-                               QPlainTextEdit, QProgressBar, QPushButton, QTabWidget,
+                               QPlainTextEdit, QProgressBar, QPushButton, QSizePolicy, QTabWidget,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 import song_cleaner_apply as applying
 import song_cleaner_engine as engine
 import song_cleaner_job as job
 import song_cleaner_names as names
+
+# The "Check for updates" button opens this page, which has the newest version of every program.
+UPDATES_PAGE = "https://djt1953.github.io/office-tools-and-learning-games/"
 import song_cleaner_online as online
 
 TEXT_PT = 20
@@ -97,8 +104,32 @@ class Worker(QThread):
             self.failed.emit("Something went wrong inside the program:\n\n" + traceback.format_exc(limit=4))
 
 
+class PathLabel(QLabel):
+    """Shows a folder path, shortened in the middle with "..." when there is not room,
+    so a long path never makes the window wider than the screen. The whole path is in
+    its tooltip."""
+
+    def __init__(self):
+        super().__init__()
+        self.full = ""
+        self.setMinimumWidth(120)
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+
+    def set_path(self, text):
+        self.full = text
+        self.setToolTip(text)
+        self._fit()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit()
+
+    def _fit(self):
+        self.setText(self.fontMetrics().elidedText(self.full, Qt.ElideMiddle, max(1, self.width())))
+
+
 class Page(QWidget):
-    """A list with a row of worded buttons under it."""
+    """A list with worded buttons under it. In buttons, None starts a new row of them."""
 
     def __init__(self, headers, buttons, window):
         super().__init__()
@@ -111,17 +142,24 @@ class Page(QWidget):
         self.tree.itemChanged.connect(self._changed)
         self.tree.itemSelectionChanged.connect(window.stop_playing)
         self.buttons = {}
-        row = QHBoxLayout()
-        for label, action in buttons:
-            button = QPushButton(label)
-            button.clicked.connect(action)
-            row.addWidget(button)
-            self.buttons[label] = button
-        row.addStretch(1)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.addWidget(self.tree, 1)
-        layout.addLayout(row)
+        rows = [[]]
+        for entry in buttons:
+            if entry is None:
+                rows.append([])
+            else:
+                rows[-1].append(entry)
+        for entries in rows:
+            row = QHBoxLayout()
+            for label, action in entries:
+                button = QPushButton(label)
+                button.clicked.connect(action)
+                row.addWidget(button)
+                self.buttons[label] = button
+            row.addStretch(1)
+            layout.addLayout(row)
         self.filling = False
         self.on_tick = None
         self.on_tick_all = None
@@ -219,13 +257,15 @@ class MainWindow(QMainWindow):
         self.player.mediaStatusChanged.connect(self._media_ready)
         self.player.positionChanged.connect(self._played_to)
 
-        self.folder_label = QLabel()
-        self.folder_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.folder_label = PathLabel()
         top = QHBoxLayout()
         self.choose_button = self._button("Choose folder", self.choose_folder, top)
         top.addWidget(self.folder_label, 1)
         self._button("Settings", self.show_settings, top)
         self._button("Help", self.show_help, top)
+        self.updates_button = self._button("Check for updates", self.check_for_updates, top)
+        self.updates_button.setToolTip("Open the web page with the newest version of the Song "
+                                       "Cleaner and the other programs")
         steps = QHBoxLayout()
         self.scan_button = self._button("1. Scan", self.start_scan, steps)
         self.lookup_button = self._button("2. Look up doubtful names online", self.start_lookup, steps)
@@ -248,6 +288,7 @@ class MainWindow(QMainWindow):
             ("Play new end", lambda: self.play_trim(page(), "new end")),
             ("Play what is cut", lambda: self.play_trim(page(), "cut")), ("Stop", self.stop_playing),
             ("Tick all", lambda: page().set_all(True)), ("Untick all", lambda: page().set_all(False)),
+            None,                                   # the cut-moving buttons go on a second row
             ("Start earlier", lambda: self.nudge(page(), "start", -NUDGE_S)),
             ("Start later", lambda: self.nudge(page(), "start", NUDGE_S)),
             ("End earlier", lambda: self.nudge(page(), "end", -NUDGE_S)),
@@ -299,6 +340,12 @@ class MainWindow(QMainWindow):
     def tell(self, text, title="Song Cleaner"):
         QMessageBox.information(self, title, text)
 
+    def check_for_updates(self):
+        """Opens UPDATES_PAGE in the web browser, or says where to go when that can't be done."""
+        if not QDesktopServices.openUrl(QUrl(UPDATES_PAGE)):
+            self.tell("The web browser could not be opened. To check for a newer version, "
+                      f"go to:\n\n{UPDATES_PAGE}")
+
     def ask(self, text, title="Song Cleaner"):
         return QMessageBox.question(self, title, text, QMessageBox.Yes | QMessageBox.No,
                                     QMessageBox.No) == QMessageBox.Yes
@@ -326,7 +373,7 @@ class MainWindow(QMainWindow):
 
     # ---- showing --------------------------------------------------------------
     def refresh(self):
-        self.folder_label.setText(self.folder or "No folder chosen yet")
+        self.folder_label.set_path(self.folder or "No folder chosen yet")
         self.fill_names()
         self.fill_copies()
         self.fill_trims()
@@ -723,9 +770,70 @@ def show_crash(kind, error, trace):
         print(text, file=sys.stderr)
 
 
+def can_play(path, wait_s=15):
+    """True when Qt's player (used by the Play buttons) can open the song."""
+    from PySide6.QtCore import QEventLoop
+    ready = (QMediaPlayer.MediaStatus.LoadedMedia, QMediaPlayer.MediaStatus.BufferedMedia)
+    done = ready + (QMediaPlayer.MediaStatus.InvalidMedia,)
+    player = QMediaPlayer()
+    player.setAudioOutput(QAudioOutput(player))
+    loop = QEventLoop()
+    player.mediaStatusChanged.connect(lambda status: loop.quit() if status in done else None)
+    QTimer.singleShot(int(wait_s * 1000), loop.quit)
+    player.setSource(QUrl.fromLocalFile(path))
+    if player.mediaStatus() not in done:
+        loop.exec()
+    return player.mediaStatus() in ready
+
+
+def self_test(folder, fingerprint=None, play=can_play):
+    """Makes three sample songs and checks every part the program brings: FFmpeg makes
+    and reads MP3s, the copies and names are worked out, fpcalc fingerprints a song and
+    the player opens one. Changes nothing. Writes self-test.txt in folder; returns 0
+    when every check passed. Run as:  "Song Cleaner.exe" --selftest <folder>"""
+    import song_cleaner_samples as samples
+    fingerprint = fingerprint or online.chromaprint
+    songs = os.path.join(folder, "songs")
+    os.makedirs(songs, exist_ok=True)
+    lines, passed = [], True
+
+    def check(ok, text):
+        nonlocal passed
+        passed = passed and bool(ok)
+        lines.append(("PASS " if ok else "FAIL ") + text)
+
+    try:
+        made = [samples.make_song(os.path.join(songs, "Abba - Waterloo_01.mp3"), 40, 1, bitrate="192k"),
+                samples.make_song(os.path.join(songs, "Abba - Waterloo.mp3"), 40, 1, lead=4, bitrate="96k"),
+                samples.make_song(os.path.join(songs, "elvis-jailhouse rock.mp3"), 40, 3)]
+        check(all(os.path.getsize(p) > 100_000 for p in made), "FFmpeg made 3 sample MP3s")
+        read = engine.scan(songs)
+        found = job.analyse(read)
+        check(len(read) == 3 and not found.problems, f"read {len(read)} songs, {len(found.problems)} problems")
+        keepers = [g.keeper.song.name for g in found.groups]
+        check(keepers == ["Abba - Waterloo_01.mp3"], f"copies found, keep {keepers}")
+        new = sorted(c.new_name for c in found.names if c.changes and not c.doubtful)
+        check(found.counts() == {"rename": 2, "remove": 1, "trim": 0}, f"changes {found.counts()}, names {new}")
+        try:
+            seconds, text = fingerprint(made[2])
+            check(seconds == 40 and len(text) > 50, f"fpcalc fingerprinted a song ({seconds} s)")
+        except engine.SongError as error:
+            check(False, f"fpcalc: {error}")
+        check(play(made[0]), "the player opened a song")
+    except Exception as error:  # noqa: BLE001 - every failure goes in the report
+        check(False, f"{type(error).__name__}: {error}")
+    lines.append("ALL PASSED" if passed else "SOME FAILED")
+    with open(os.path.join(folder, "self-test.txt"), "w", encoding="utf-8") as out:
+        out.write("\n".join(lines) + "\n")
+    return 0 if passed else 1
+
+
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Song Cleaner")
+    if sys.argv[1:2] == ["--selftest"]:
+        return self_test(sys.argv[2] if len(sys.argv) > 2 else os.path.join(
+            os.environ.get("TEMP", "."), "Song Cleaner self-test"))
     black_words(app)
     sys.excepthook = show_crash
     lock = QLockFile(os.path.join(engine.app_folder(), "running.lock"))
@@ -733,6 +841,8 @@ def main():
         QMessageBox.information(None, "Song Cleaner", "Song Cleaner is already open.")
         return 0
     window = MainWindow()
+    if len(sys.argv) > 1 and os.path.isdir(sys.argv[1]):    # a folder dropped on the shortcut
+        window.set_folder(sys.argv[1])
     window.showMaximized()
     return app.exec()
 

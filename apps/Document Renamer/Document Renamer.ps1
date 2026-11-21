@@ -521,6 +521,36 @@ function New-Button([string]$Text) {
     return $b
 }
 
+# The "Check for updates" button opens this page, which has the newest version of every program
+$script:UpdatesPage = 'https://djt1953.github.io/office-tools-and-learning-games/'
+
+# Opens the page in the web browser, or says where to go when that can't be done.
+# The checks set CHECK_UPDATES_TEST_FILE to see where it goes without opening a browser.
+function Open-UpdatesPage {
+    if ($env:CHECK_UPDATES_TEST_FILE) { Set-Content -LiteralPath $env:CHECK_UPDATES_TEST_FILE -Value $script:UpdatesPage; return }
+    try { Start-Process $script:UpdatesPage }
+    catch { Show-Message ("The web browser could not be opened. To check for a newer version, go to:`n`n" + $script:UpdatesPage) | Out-Null }
+}
+
+# The row across the top of a window: its heading on the left, "Check for updates" in the right corner
+function New-HeadingRow($Heading) {
+    $row = New-Object System.Windows.Forms.TableLayoutPanel
+    $row.ColumnCount = 2
+    $row.RowCount = 1
+    $row.AutoSize = $true
+    $row.AutoSizeMode = 'GrowAndShrink'
+    $row.Dock = 'Fill'            # as wide as the window
+    $row.Margin = New-Object System.Windows.Forms.Padding(0)
+    [void]$row.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('Percent', 100)))
+    [void]$row.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('AutoSize')))
+    $row.Controls.Add($Heading, 0, 0)
+    $updatesBtn = New-Button 'Check for updates'
+    $updatesBtn.Anchor = 'Top, Right'
+    $updatesBtn.Add_Click({ Open-UpdatesPage })
+    $row.Controls.Add($updatesBtn, 1, 0)
+    return $row
+}
+
 # A box with a bold title around a two-column grid of choices. The grid is in the box's Tag.
 function New-Group([string]$Title) {
     $box = New-Object System.Windows.Forms.GroupBox
@@ -671,9 +701,9 @@ function Show-PreviewForm([string]$Folder, $Items, [hashtable]$Last, $History, [
     $form.Controls.Add($page)
     $top = New-Grid 2
     $bottom = New-Grid 1
+    Add-Row $page (New-HeadingRow (New-Label 'Rename the files in this folder' -Bold -Size 12))
     Add-Row $page $top
 
-    Add-Row $top (New-Label 'Rename the files in this folder' -Bold -Size 12) -Wide
     # No folder yet (when the app starts): the folder button says what to do first
     $noFolder = -not $Folder
     $chooseFirst = 'Choose a folder first: click "Choose a folder..." at the top of the window.'

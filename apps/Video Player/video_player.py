@@ -38,6 +38,8 @@ import traceback
 
 TITLE = "Video Player"
 PYSIDE = "pyside6>=6.10"        # 6.10 and later bundle FFmpeg on Windows
+# The "Check for updates" button opens this page, which has the newest version of every program.
+UPDATES_PAGE = "https://djt1953.github.io/office-tools-and-learning-games/"
 
 VIDEO_EXTENSIONS = {
     ".3g2", ".3gp", ".asf", ".avi", ".divx", ".f4v", ".flv", ".m2ts", ".m2v",
@@ -213,8 +215,11 @@ def has_module(name):
 def install_missing(needs=NEEDS):
     """Double-clicking can start a different Python from the one pip installed
     into, so offer to add whatever this one lacks. video_editor.py calls this
-    too, for its own add-on."""
-    missing = [need for module, need in needs.items() if not has_module(module)]
+    too, for its own add-on. A built copy (the .exe from Setup) already has
+    everything inside it and has no pip, so it never asks."""
+    if getattr(sys, "frozen", False):
+        return
+    missing =[need for module, need in needs.items() if not has_module(module)]
     if not missing:
         return
     names = " and ".join(what for _, what, _ in missing)
@@ -237,13 +242,14 @@ sys.excepthook = show_crash
 install_missing()
 
 from PySide6.QtCore import QEvent, QSettings, QSize, QStandardPaths, Qt, QTimer, QUrl
-from PySide6.QtGui import QAction, QFont, QIcon, QKeySequence, QShortcut, QWindow
+from PySide6.QtGui import (QAction, QDesktopServices, QFont, QIcon, QKeySequence, QShortcut,
+                           QWindow)
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer, QtAudio
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-    QMainWindow, QSlider, QSplitter, QStackedWidget, QStyle, QToolButton,
-    QVBoxLayout, QWidget,
+    QMainWindow, QMessageBox, QPushButton, QSizePolicy, QSlider, QSplitter, QStackedWidget,
+    QStyle, QToolBar, QToolButton, QVBoxLayout, QWidget,
 )
 
 
@@ -253,6 +259,37 @@ def file_filter():
     videos = " ".join("*" + ext for ext in sorted(VIDEO_EXTENSIONS))
     sounds = " ".join("*" + ext for ext in sorted(AUDIO_EXTENSIONS))
     return f"Videos ({videos});;Sound files ({sounds});;All files (*)"
+
+
+def open_updates_page(parent):
+    """Opens UPDATES_PAGE in the web browser, or says where to go when that can't be done."""
+    if not QDesktopServices.openUrl(QUrl(UPDATES_PAGE)):
+        QMessageBox.information(parent, TITLE, "The web browser could not be opened. To check "
+                                f"for a newer version, go to:\n\n{UPDATES_PAGE}")
+
+
+def add_updates_button(window):
+    """Puts a "Check for updates" button in the top right corner of a main window, on a thin
+    bar across the top (under the menus, if there are any). Returns the button; the bar is
+    window.updates_bar. The Video Editor and the Audio Editor use it too.
+    (Not in the menu bar's own corner: Windows' screen readers and UI Automation can't
+    see a button there.)"""
+    button = QPushButton("Check for updates")
+    button.setToolTip("Open the web page with the newest version of this program and the others")
+    button.setFocusPolicy(Qt.FocusPolicy.NoFocus)       # leave Space and the arrows to the keys
+    button.clicked.connect(lambda: open_updates_page(window))
+    bar = QToolBar("Updates bar")
+    bar.setObjectName("updates_bar")
+    bar.setMovable(False)
+    bar.setFloatable(False)
+    bar.toggleViewAction().setVisible(False)            # so it can't be switched off by mistake
+    gap = QWidget()
+    gap.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+    bar.addWidget(gap)
+    bar.addWidget(button)
+    window.addToolBar(Qt.ToolBarArea.TopToolBarArea, bar)
+    window.updates_bar = bar
+    return button
 
 
 class SeekSlider(QSlider):
@@ -410,6 +447,7 @@ class PlayerWindow(QMainWindow):
         layout.addWidget(self.splitter, 1)
         layout.addWidget(self.controls)
         self.setCentralWidget(central)
+        self.updates_button = add_updates_button(self)
         self.statusBar().showMessage("Open some videos to start.")
 
     def build_shortcuts(self):
@@ -659,6 +697,7 @@ class PlayerWindow(QMainWindow):
             self.list_was_visible = self.list.isVisible()
             self.was_maximized = self.isMaximized()
             self.list.hide()
+            self.updates_bar.hide()
             self.statusBar().hide()
             self.showFullScreen()
             self.full_button.setText("Leave full screen")
@@ -673,6 +712,7 @@ class PlayerWindow(QMainWindow):
         else:
             self.showNormal()
         self.controls.show()
+        self.updates_bar.show()
         self.statusBar().show()
         self.list.setVisible(self.list_was_visible)
         self.unsetCursor()

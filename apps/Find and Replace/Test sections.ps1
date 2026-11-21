@@ -117,6 +117,36 @@ Test-Same 'both phrases typed' (Get-SettingsProblem (New-Settings 'FROM' '^p') 1
 $S = New-Settings 'FROM' 'TO'; $S.Between.On = $false
 Test-Same 'nothing ticked' (Get-SettingsProblem $S 1) 'Tick at least one of the four: "Words, phrases or marks", "The beginning", "Sections between two phrases" or "The ending".'
 
+"--- the window's ""Check for updates"" button"
+Add-Type -AssemblyName System.Windows.Forms
+function Get-FunctionAst([string]$Name) {
+    return $ast.Find({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $Name }, $true)
+}
+foreach ($name in 'Show-Message', 'New-Button', 'Open-UpdatesPage', 'New-HeadingRow') { . ([scriptblock]::Create((Get-FunctionAst $name).Extent.Text)) }
+$set = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -eq '$script:UpdatesPage' }, $true)
+. ([scriptblock]::Create($set.Extent.Text))
+$uses = (Get-FunctionAst 'Show-MainForm').Find({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'New-HeadingRow' }, $true)
+Test-Same 'the main window has the row with the button at the top' ([bool]$uses) 'True'
+$row = New-HeadingRow (New-Object System.Windows.Forms.Label)
+$btn = $row.Controls[1]
+Test-Same 'button words' $btn.Text 'Check for updates'
+Test-Same 'button sits in the right corner' ([string]$btn.Anchor) 'Top, Right'
+$click = [System.Windows.Forms.Button].GetMethod('OnClick', [Reflection.BindingFlags]'NonPublic, Instance')
+$env:CHECK_UPDATES_TEST_FILE = [IO.Path]::GetTempFileName()
+try {
+    [void]$click.Invoke($btn, @([EventArgs]::Empty))
+    Test-Same 'a click opens the download page' ((Get-Content -LiteralPath $env:CHECK_UPDATES_TEST_FILE -Raw).Trim()) 'https://djt1953.github.io/office-tools-and-learning-games/'
+} finally {
+    Remove-Item -LiteralPath $env:CHECK_UPDATES_TEST_FILE -ErrorAction SilentlyContinue
+    Remove-Item Env:CHECK_UPDATES_TEST_FILE
+}
+function Start-Process { throw 'no web browser' }
+function Show-Message([string]$Text) { $script:Told = $Text }
+$script:Told = ''
+[void]$click.Invoke($btn, @([EventArgs]::Empty))
+Test-Same 'with no web browser it says where the page is' ($script:Told -like '*go to:*https://djt1953.github.io/office-tools-and-learning-games/') 'True'
+Remove-Item Function:Start-Process, Function:Show-Message
+
 # ------------------------------------------------------------ real documents, using Word
 
 $dir = Join-Path ([IO.Path]::GetTempPath()) ('FRsections' + [guid]::NewGuid().ToString('N').Substring(0, 8))

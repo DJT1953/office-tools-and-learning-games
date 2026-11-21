@@ -40,6 +40,7 @@ import sys
 import tempfile
 import threading
 import traceback
+import webbrowser
 import zipfile
 from copy import deepcopy
 from io import BytesIO
@@ -49,6 +50,8 @@ from tkinter import filedialog, messagebox, ttk
 from tkinter import font as tkfont
 
 TITLE = "Combine Document Files"
+# The "Check for updates" button opens this page, which has the newest version of every program.
+UPDATES_PAGE = "https://djt1953.github.io/office-tools-and-learning-games/"
 REQUIRED = {"docx": "python-docx", "docxcompose": "docxcompose"}
 if os.name == "nt":
     REQUIRED["comtypes"] = "comtypes"      # talks to Microsoft Word
@@ -1031,6 +1034,16 @@ class App:
             button.invoke()
         return "break"
 
+    def check_for_updates(self):
+        """Opens UPDATES_PAGE in the web browser, or says where to go when that can't be done."""
+        try:
+            opened = webbrowser.open(UPDATES_PAGE)
+        except Exception:
+            opened = False
+        if not opened:
+            messagebox.showinfo(TITLE, "The web browser could not be opened. To check for a newer "
+                                f"version, go to:\n\n{UPDATES_PAGE}", parent=self.root)
+
     def _destroyed(self, event):
         if event.widget is self.root:
             self.root.after_cancel(self.poll_id)
@@ -1103,6 +1116,12 @@ class App:
         b = ttk.Button(moves, text="Back to name order", command=self.name_order_click)
         b.pack(side="left", padx=(12, 0))
         self.move_buttons.append(b)
+
+        # A thin bar across the top with "Check for updates" in the right corner
+        bar = ttk.Frame(root)
+        bar.pack(side="top", fill="x", padx=10, pady=(8, 0))
+        self.btn_updates = ttk.Button(bar, text="Check for updates", command=self.check_for_updates)
+        self.btn_updates.pack(side="right")
 
         step1 = ttk.LabelFrame(root, text="Step 1: Pick the files")
         step1.pack(side="top", fill="both", expand=True, **pad)

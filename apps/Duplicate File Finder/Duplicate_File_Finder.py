@@ -50,6 +50,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import webbrowser
 import xml.etree.ElementTree as ET
 import zipfile
 import zlib
@@ -59,6 +60,9 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
+
+# The "Check for updates" button opens this page, which has the newest version of every program.
+UPDATES_PAGE = "https://djt1953.github.io/office-tools-and-learning-games/"
 from operator import mul
 
 
@@ -69,6 +73,8 @@ def _ensure_pillow():
     import importlib.util
     if importlib.util.find_spec("PIL") is not None:
         return True
+    if getattr(sys, "frozen", False):
+        return False    # a built copy (the .exe from Setup) has Pillow inside, and no pip
     print("First-time setup: installing the Pillow picture library (needs internet)...")
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "pillow"])
@@ -384,6 +390,8 @@ def find_ffmpeg():
 def install_ffmpeg():
     """Install the free package that contains ffmpeg. Returns its path, or None."""
     import importlib
+    if getattr(sys, "frozen", False):
+        return find_ffmpeg()    # a built copy has ffmpeg inside, and no pip
     try:
         subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "imageio-ffmpeg"], check=True,
                        stdin=subprocess.DEVNULL, capture_output=True, creationflags=NO_WINDOW)
@@ -1444,6 +1452,16 @@ class App:
         self._refresh()
         root.protocol("WM_DELETE_WINDOW", self.on_close)
 
+    def check_for_updates(self):
+        """Opens UPDATES_PAGE in the web browser, or says where to go when that can't be done."""
+        try:
+            opened = webbrowser.open(UPDATES_PAGE)
+        except Exception:
+            opened = False
+        if not opened:
+            messagebox.showinfo("Duplicate File Finder", "The web browser could not be opened. To "
+                                f"check for a newer version, go to:\n\n{UPDATES_PAGE}", parent=self.root)
+
     def _build(self):
         pad = {"padx": 10, "pady": 4}
         top = ttk.Frame(self.root)
@@ -1453,6 +1471,9 @@ class App:
         r1.pack(fill="x", pady=2)
         self.btn_choose = ttk.Button(r1, text="1. Choose folder...", command=self.choose_folder)
         self.btn_choose.pack(side="left")
+        # In the top right corner (packed before the folder name, so a long name can't squeeze it)
+        self.btn_updates = ttk.Button(r1, text="Check for updates", command=self.check_for_updates)
+        self.btn_updates.pack(side="right")
         ttk.Label(r1, textvariable=self.dir_var).pack(side="left", padx=10)
 
         box = ttk.LabelFrame(top, text="2. What kind of duplicates to look for")

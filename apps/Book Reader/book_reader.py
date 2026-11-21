@@ -24,6 +24,8 @@ import traceback
 sys.dont_write_bytecode = True
 
 TITLE = "Book Reader"
+# The "Check for updates" button opens this page, which has the newest version of every program.
+UPDATES_PAGE = "https://djt1953.github.io/office-tools-and-learning-games/"
 NEEDS = {
     # module to look for: (what pip installs, what it is for, download size in MB)
     "PySide6.QtWebEngineWidgets": ("pyside6>=6.10", "PySide6, which shows the books and the window", 200),
@@ -67,7 +69,11 @@ def has_module(name: str) -> bool:
 
 
 def install_missing(needs: dict = NEEDS) -> None:
-    """On a PC where they aren't installed yet, offer to install the free add-ons."""
+    """On a PC where they aren't installed yet, offer to install the free add-ons. A built
+    copy (the .exe from Setup) already has everything inside it and has no pip, so it
+    never asks."""
+    if getattr(sys, "frozen", False):
+        return
     missing = [need for module, need in needs.items() if not has_module(module)]
     if not missing:
         return
@@ -317,6 +323,7 @@ class LibraryPage(QWidget):
     pick_requested = Signal()
     delete_requested = Signal(list)          # entry ids
     help_requested = Signal()
+    updates_requested = Signal()
 
     def __init__(self, library: lib.Library, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -343,7 +350,15 @@ class LibraryPage(QWidget):
                  self.free_books_requested),
                 ("Pick books", "\u2611", "Tick several covers, to delete them or to clear out duplicates",
                  self.pick_requested),
-                ("Help", "?", "How to use the Book Reader", self.help_requested)):
+                ("Help", "?", "How to use the Book Reader", self.help_requested),
+                # After a gap, in the top right corner
+                (None, None, None, None),
+                ("Check for updates", "\U0001F504",
+                 "Open the web page with the newest version of the Book Reader and the other programs",
+                 self.updates_requested)):
+            if name is None:
+                top.addStretch(1)
+                continue
             b = ui.tool_button(name, glyph, tip, signal.emit)
             # Never narrower than its whole word: a squeezed button shows "A…s" instead of "Add books".
             # (A set minimum width would win over this, so it goes; the row scrolls sideways instead.)
@@ -353,7 +368,6 @@ class LibraryPage(QWidget):
             top.addWidget(b)
         self.top_buttons["Pick books"].setCheckable(True)
         self.pick_requested.connect(self.toggle_picking)
-        top.addStretch(1)
         # The buttons, "Last read", and the search each get a row: side by side they don't fit
         # a usual window with big words, and a long title beside the buttons would wrap and cut them.
         self.continue_label = QLabel("")
@@ -911,6 +925,7 @@ class MainWindow(QMainWindow):
         self.library_page.free_books_requested.connect(self.free_books)
         self.library_page.delete_requested.connect(self.delete_books)
         self.library_page.help_requested.connect(self.show_help)
+        self.library_page.updates_requested.connect(self.check_for_updates)
         self.reading_page.library_requested.connect(self.show_library)
         self.reading_page.full_screen_requested.connect(self._full_screen)
         self.scan_progress.connect(self._scan_progress)
@@ -1116,6 +1131,12 @@ class MainWindow(QMainWindow):
         if self.scanning():
             self.start_scan()                       # a look through the folders began before: look again
 
+    def check_for_updates(self) -> None:
+        """Opens UPDATES_PAGE in the web browser, or says where to go when that can't be done."""
+        if not ui.open_url(UPDATES_PAGE):
+            ui.inform(self, TITLE, "The web browser could not be opened. To check for a newer "
+                                   f"version, go to:\n\n{UPDATES_PAGE}")
+
     def free_books(self) -> None:
         """A menu of websites that give books away free without signing up: the one picked opens in
         the web browser; the last item says how to read what was downloaded."""
@@ -1208,10 +1229,85 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
 
+def wait_for(condition, seconds: float) -> bool:
+    """Let Qt work until condition() is true or the time is up."""
+    import time
+    from PySide6.QtCore import QCoreApplication
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if condition():
+            return True
+        QCoreApplication.processEvents()
+        time.sleep(0.02)
+    return bool(condition())
+
+
+def self_test(folder: str) -> int:
+    """Checks every part the program brings: an EPUB is read with lxml, Qt's built-in
+    Chromium shows a page, a PDF opens, and reading aloud has a Windows voice engine.
+    Writes self-test.txt in folder; returns 0 when every check passed.
+    Run as:  "Book Reader.exe" --selftest <folder>"""
+    import book_reader_samples as samples
+    os.makedirs(folder, exist_ok=True)
+    lines: list[str] = []
+    passed = True
+
+    def check(ok, text):
+        nonlocal passed
+        passed = passed and bool(ok)
+        lines.append(("PASS " if ok else "FAIL ") + text)
+
+    try:
+        book = formats.open_book(samples.make_epub(os.path.join(folder, "sample.epub")))
+        check(book.title == samples.TITLE and book.authors == [samples.AUTHOR]
+              and "bees" in book.section_text(len(book.sections) - 1),
+              f"EPUB read: {book.title} by {', '.join(book.authors)}, {len(book.sections)} parts")
+    except Exception as error:  # noqa: BLE001 - every failure goes in the report
+        check(False, f"EPUB: {type(error).__name__}: {error}")
+    try:
+        from PySide6.QtWebEngineCore import QWebEnginePage
+        page = QWebEnginePage()
+        loaded, text = [], []
+        page.loadFinished.connect(loaded.append)
+        page.setHtml("<p>The bees came home at dusk.</p>")
+        wait_for(lambda: loaded, 30)
+        if loaded and loaded[0]:
+            page.runJavaScript("document.body.innerText", 0, text.append)
+            wait_for(lambda: text, 10)
+        check(text and "bees" in text[0], "the page viewer (Qt's Chromium) showed a page")
+    except Exception as error:  # noqa: BLE001
+        check(False, f"page viewer: {type(error).__name__}: {error}")
+    try:
+        from PySide6.QtPdf import QPdfDocument
+        document = QPdfDocument()
+        document.load(samples.make_pdf(os.path.join(folder, "sample.pdf")))
+        words = document.getAllText(1).text() if document.pageCount() > 1 else ""
+        check(document.pageCount() == 3 and "Page 2" in words,
+              f"PDF opened: {document.pageCount()} pages")
+    except Exception as error:  # noqa: BLE001
+        check(False, f"PDF: {type(error).__name__}: {error}")
+    try:
+        from PySide6.QtTextToSpeech import QTextToSpeech
+        engines = QTextToSpeech.availableEngines()
+        check(any(e in engines for e in ("winrt", "sapi")),
+              f"reading aloud has Windows voice engines: {', '.join(engines) or 'none'}")
+        voices = QTextToSpeech().availableVoices()
+        lines.append(f"NOTE voices on this PC: {len(voices)}")
+    except Exception as error:  # noqa: BLE001
+        check(False, f"reading aloud: {type(error).__name__}: {error}")
+    lines.append("ALL PASSED" if passed else "SOME FAILED")
+    with open(os.path.join(folder, "self-test.txt"), "w", encoding="utf-8") as out:
+        out.write("\n".join(lines) + "\n")
+    return 0 if passed else 1
+
+
 def main(argv: list[str]) -> int:
     web.register_scheme()
     app = QApplication(argv)
     app.setApplicationName("Book Reader")
+    if argv[1:2] == ["--selftest"]:
+        return self_test(argv[2] if len(argv) > 2 else os.path.join(
+            os.environ.get("TEMP", "."), "Book Reader self-test"))
     paths = [os.path.abspath(a) for a in argv[1:] if os.path.exists(a)]
     name = os.environ.get("BOOK_READER_SERVER") or server_name()
     if send_to_running(name, paths):

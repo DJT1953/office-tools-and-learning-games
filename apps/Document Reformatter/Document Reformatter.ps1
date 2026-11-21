@@ -433,6 +433,39 @@ function New-Button([string]$Text) {
 }
 
 
+# ---------------------------------------------------------------- the "Check for updates" button
+
+# It opens this page, which has the newest version of every program
+$script:UpdatesPage = 'https://djt1953.github.io/office-tools-and-learning-games/'
+
+# Opens the page in the web browser, or says where to go when that can't be done.
+# The checks set CHECK_UPDATES_TEST_FILE to see where it goes without opening a browser.
+function Open-UpdatesPage {
+    if ($env:CHECK_UPDATES_TEST_FILE) { Set-Content -LiteralPath $env:CHECK_UPDATES_TEST_FILE -Value $script:UpdatesPage; return }
+    try { Start-Process $script:UpdatesPage }
+    catch { Show-Message ("The web browser could not be opened. To check for a newer version, go to:`n`n" + $script:UpdatesPage) | Out-Null }
+}
+
+# The row across the top of a window: its heading on the left, "Check for updates" in the right corner
+function New-HeadingRow($Heading) {
+    $row = New-Object System.Windows.Forms.TableLayoutPanel
+    $row.ColumnCount = 2
+    $row.RowCount = 1
+    $row.AutoSize = $true
+    $row.AutoSizeMode = 'GrowAndShrink'
+    $row.Dock = 'Fill'            # as wide as the window
+    $row.Margin = New-Object System.Windows.Forms.Padding(0)
+    [void]$row.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('Percent', 100)))
+    [void]$row.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('AutoSize')))
+    $row.Controls.Add($Heading, 0, 0)
+    $updatesBtn = New-Button 'Check for updates'
+    $updatesBtn.Anchor = 'Top, Right'
+    $updatesBtn.Add_Click({ Open-UpdatesPage })
+    $row.Controls.Add($updatesBtn, 1, 0)
+    return $row
+}
+
+
 # ---------------------------------------------------------------- the settings window
 
 function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable]$Fonts) {
@@ -461,10 +494,10 @@ function Show-SettingsForm([string]$Folder, $Items, [hashtable]$Last, [hashtable
     $bottom = New-Grid 1
     $left.Margin = New-Object System.Windows.Forms.Padding(0, 0, 36, 0)
     Add-Row $sides $left $right
+    Add-Row $page (New-HeadingRow (New-Label 'Reformat the documents in this folder' -Bold -Size 12))
     foreach ($part in $top, $sides, $bottom) { Add-Row $page $part }
 
     # --- the folder and what was found in it
-    Add-Row $top (New-Label 'Reformat the documents in this folder' -Bold -Size 12) -Wide
     $folderPanel = New-Object System.Windows.Forms.FlowLayoutPanel
     $folderPanel.AutoSize = $true
     $folderPanel.WrapContents = $false

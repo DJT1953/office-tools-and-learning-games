@@ -27,9 +27,17 @@ SHORTCUT = "Song Cleaner.lnk"
 LAUNCHER = "Run_SongCleaner.bat"
 
 
-def missing_packages(packages=PACKAGES):
-    """pip names of the add-ons this Python does not have (numpy older than 2 counts as missing)."""
-    missing = [pip for module, pip in packages.items() if importlib.util.find_spec(module) is None]
+def frozen():
+    """True in the installed Song Cleaner.exe, which has every add-on inside it and no pip."""
+    return getattr(sys, "frozen", False)
+
+
+def missing_packages(packages=PACKAGES, is_frozen=None):
+    """pip names of the add-ons this Python does not have (numpy older than 2 counts as missing).
+    None in the installed Song Cleaner.exe."""
+    if frozen() if is_frozen is None else is_frozen:
+        return []
+    missing =[pip for module, pip in packages.items() if importlib.util.find_spec(module) is None]
     if "numpy>=2" not in missing and "numpy" in packages:
         try:
             import numpy
@@ -40,9 +48,9 @@ def missing_packages(packages=PACKAGES):
     return missing
 
 
-def install_packages(names, run=subprocess.run):
+def install_packages(names, run=subprocess.run, is_frozen=None):
     """pip-install the named add-ons. Returns an error text, or "" when fine."""
-    if not names:
+    if not names or (frozen() if is_frozen is None else is_frozen):
         return ""
     result = run([sys.executable, "-m", "pip", "install", "--upgrade", "--disable-pip-version-check"] + names)
     site.addsitedir(site.getusersitepackages())       # a first install may have just made it

@@ -49,6 +49,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import webbrowser
 import xml.etree.ElementTree as ET
 import zipfile
 import zlib
@@ -56,6 +57,9 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
+
+# The "Check for updates" button opens this page, which has the newest version of every program.
+UPDATES_PAGE = "https://djt1953.github.io/office-tools-and-learning-games/"
 
 try:
     import tkinter as tk
@@ -732,6 +736,16 @@ class App:
         self.cancel.set()
         self.root.destroy()
 
+    def check_for_updates(self):
+        """Opens UPDATES_PAGE in the web browser, or says where to go when that can't be done."""
+        try:
+            opened = webbrowser.open(UPDATES_PAGE)
+        except Exception:
+            opened = False
+        if not opened:
+            messagebox.showinfo("Cross-Folder Compare", "The web browser could not be opened. To "
+                                f"check for a newer version, go to:\n\n{UPDATES_PAGE}", parent=self.root)
+
     def _build(self):
         pad = {"padx": 10, "pady": 3}
         top = ttk.Frame(self.root)
@@ -741,6 +755,9 @@ class App:
         r1.pack(fill="x", pady=2)
         self.btn_a = ttk.Button(r1, text="1. Choose Folder A...", command=lambda: self.choose("A"))
         self.btn_a.pack(side="left")
+        # In the top right corner (packed before the folder name, so a long name can't squeeze it)
+        self.btn_updates = ttk.Button(r1, text="Check for updates", command=self.check_for_updates)
+        self.btn_updates.pack(side="right")
         ttk.Label(r1, textvariable=self.label_a).pack(side="left", padx=10)
 
         r2 = ttk.Frame(top)

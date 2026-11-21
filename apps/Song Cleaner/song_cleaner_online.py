@@ -14,6 +14,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -44,9 +45,20 @@ class Match:
     score: float
 
 
+def bundled_fpcalc(frozen=None, exe=None):
+    """Where Setup.exe puts fpcalc: tools\\fpcalc.exe beside Song Cleaner.exe. None when
+    running as a .py file, which uses the downloaded copy instead."""
+    frozen = getattr(sys, "frozen", False) if frozen is None else frozen
+    if not frozen:
+        return None
+    return os.path.join(os.path.dirname(exe or sys.executable), "tools", "fpcalc.exe")
+
+
 def fpcalc_path():
-    path = os.path.join(app_folder(), "fpcalc.exe")
-    return path if os.path.isfile(path) else None
+    for path in (bundled_fpcalc(), os.path.join(app_folder(), "fpcalc.exe")):
+        if path and os.path.isfile(path):
+            return path
+    return None
 
 
 def fetch_fpcalc(opener=urllib.request.urlopen):

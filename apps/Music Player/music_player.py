@@ -1,3 +1,7 @@
+# Music Player - Copyright (C) 2026 DJThomas
+# Free software: you can share and change it under the GNU General Public License,
+# version 3 or (at your option) any later version. It comes with NO WARRANTY.
+# See licenses\GPL-3.0.txt. The same applies to every music_player_*.py file.
 """
 music_player.py
 
@@ -60,6 +64,8 @@ import time
 import traceback
 
 TITLE = "Music Player"
+# The "Check for updates" button opens this page, which has the newest version of every program.
+UPDATES_PAGE = "https://djt1953.github.io/office-tools-and-learning-games/"
 
 NEEDS = {
     # module to look for: (what pip installs, what it is for, download size in MB)
@@ -115,7 +121,10 @@ def has_module(name):
 
 def install_missing(needs=NEEDS):
     """Double-clicking can start a different Python from the one pip installed
-    into, so offer to add whatever this one lacks."""
+    into, so offer to add whatever this one lacks. A built copy (the .exe from
+    Setup) already has everything inside it and has no pip, so it never asks."""
+    if getattr(sys, "frozen", False):
+        return
     missing = [need for module, need in needs.items() if not has_module(module)]
     if not missing:
         return
@@ -144,21 +153,21 @@ from PySide6.QtCore import (
     QSortFilterProxyModel, Qt, QTimer, QUrl, Signal,
 )
 from PySide6.QtGui import (
-    QAction, QColor, QFont, QFontMetrics, QGuiApplication, QIcon, QKeySequence, QPainter, QPixmap,
-    QShortcut,
+    QAction, QColor, QDesktopServices, QFont, QFontMetrics, QGuiApplication, QIcon, QKeySequence,
+    QPainter, QPixmap, QShortcut,
 )
 from PySide6.QtMultimedia import (
     QAudioFormat, QAudioOutput, QAudioSink, QMediaDevices, QMediaPlayer, QtAudio,
 )
 from PySide6.QtNetwork import QLocalServer, QLocalSocket, QNetworkAccessManager, QNetworkRequest
 from PySide6.QtWidgets import (
-    QAbstractItemView, QApplication, QButtonGroup, QComboBox, QDialog, QFileDialog,
+    QAbstractItemView, QApplication, QBoxLayout, QButtonGroup, QComboBox, QDialog, QFileDialog,
     QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit,
     QListWidget, QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPushButton,
     QFrame, QRadioButton, QScrollArea, QSizePolicy, QSlider, QSpinBox, QSplitter, QStyle,
     QTableView,
-    QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QToolButton, QToolTip, QVBoxLayout,
-    QWidget,
+    QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QToolBar, QToolButton, QToolTip,
+    QVBoxLayout, QWidget,
 )
 
 import music_player_engine as engine
@@ -1015,6 +1024,66 @@ class HelpDialog(QDialog):
 
 # ---------------------------------------------------------------- the window
 
+class FitRow(QWidget):
+    """Parts side by side when there is room, otherwise one under another, so a row of
+    big buttons never makes the window wider than a smaller screen. It decides from its
+    own width, which its minimum (the widest single part) lets the window shrink to."""
+
+    def __init__(self, parts, spacing=14, stretch=None, on_change=None):
+        super().__init__()
+        self.parts = list(parts)
+        self.on_change = on_change          # told True when the parts stack, False when not
+        self.box = QBoxLayout(QBoxLayout.Direction.LeftToRight, self)
+        self.box.setContentsMargins(0, 0, 0, 0)
+        self.box.setSpacing(spacing)
+        for index, part in enumerate(self.parts):
+            self.box.addWidget(part, 1 if index == stretch else 0)
+
+    def one_row_width(self):
+        return (sum(part.minimumSizeHint().width() for part in self.parts)
+                + self.box.spacing() * (len(self.parts) - 1))
+
+    def minimumSizeHint(self):
+        hint = super().minimumSizeHint()
+        return QSize(max(part.minimumSizeHint().width() for part in self.parts), hint.height())
+
+    def sizeHint(self):
+        # Always ask for room for one row, so a row that had to stack goes back to one
+        # row when the window is made wider again.
+        hint = super().sizeHint()
+        return QSize(max(hint.width(), self.one_row_width()), hint.height())
+
+    def stacked(self):
+        return self.box.direction() == QBoxLayout.Direction.TopToBottom
+
+    def fit(self, width):
+        direction = (QBoxLayout.Direction.LeftToRight if width >= self.one_row_width()
+                     else QBoxLayout.Direction.TopToBottom)
+        if self.box.direction() != direction:
+            self.box.setDirection(direction)
+            if self.on_change:
+                self.on_change(self.stacked())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.fit(event.size().width())
+
+
+def row_of(*widgets, spacing=6, stretch_after=None):
+    """A plain row of widgets in a widget of its own, for a FitRow part."""
+    holder = QWidget()
+    row = QHBoxLayout(holder)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(spacing)
+    for index, widget in enumerate(widgets):
+        row.addWidget(widget)
+        if index == stretch_after:
+            row.addStretch(1)
+    if stretch_after is None:
+        row.addStretch(1)
+    return holder
+
+
 class MusicWindow(QMainWindow):
 
     def __init__(self, settings):
@@ -1288,24 +1357,35 @@ class MusicWindow(QMainWindow):
             b.setMinimumWidth(max(100, max(measure(text) for text in texts) + 30))
         self.volume.setMinimumWidth(110)
         self.speed_box.setMinimumHeight(SECOND_ROW_HEIGHT - 4)
-        row = QHBoxLayout(self.transport)
-        row.setContentsMargins(0, 2, 0, 2)
-        row.setSpacing(6)
-        for b in (self.prev_button, self.back_button, self.play_button, self.stop_button,
-                  self.forward_button, self.next_button):
-            row.addWidget(b)
-        row.addSpacing(14)
-        for b in (self.shuffle_button, self.repeat_button, self.speed_box):
-            row.addWidget(b)
-        row.addStretch(1)
-        row.addWidget(QLabel("Volume"))
-        row.addWidget(self.volume)
-        row.addWidget(self.volume_label)
-        row.addWidget(self.mute_button)
+        # Two parts: the playing buttons, then Shuffle, Repeat, Speed and the volume. Side by
+        # side when the window is wide enough; on a smaller screen the second part goes
+        # under the first, so nothing hangs off the edge of the screen.
+        self.transport_playing = row_of(self.prev_button, self.back_button, self.play_button,
+                                        self.stop_button, self.forward_button, self.next_button)
+        # The volume moves up beside the song's name when the row has no room for it
+        # (place_volume), so a smaller screen still gets one row of buttons.
+        self.volume_group = QWidget()
+        volume_row = QHBoxLayout(self.volume_group)
+        volume_row.setContentsMargins(0, 0, 0, 0)
+        volume_row.setSpacing(6)
+        for part in (QLabel("Volume"), self.volume, self.volume_label, self.mute_button):
+            volume_row.addWidget(part)
+        self.transport_extras = row_of(self.shuffle_button, self.repeat_button, self.speed_box,
+                                       self.volume_group, stretch_after=2)
+        self.transport_widths = {b: b.minimumWidth() for b in
+                                 (self.shuffle_button, self.repeat_button, self.mute_button)}
+        self.transport_row = FitRow([self.transport_playing, self.transport_extras], stretch=1,
+                                    on_change=self.transport_stacked)
+        transport_box = QVBoxLayout(self.transport)
+        transport_box.setContentsMargins(0, 2, 0, 2)
+        transport_box.addWidget(self.transport_row)
         self.sleep_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.sleep_button.setIconSize(QSize(32, 32))
         self.sleep_button.setMinimumHeight(min(self.cover_size, SECOND_ROW_HEIGHT + 8))
         self.sleep_button.setMinimumWidth(fits_bold("Sleep: 0:00:00") + 70)   # steady, even bold
+        self.top_volume_spot = QHBoxLayout()          # where the volume goes on a smaller screen
+        top.addLayout(self.top_volume_spot)
+        top.addSpacing(12)
         top.addWidget(self.sleep_button, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # --- radio's own buttons, shown while a station plays
@@ -1361,6 +1441,7 @@ class MusicWindow(QMainWindow):
         self.tabs.addTab(self.build_radio_page(), "Radio")
         self.tabs.addTab(self.build_spotify_page(), "Spotify")
         self.tabs.currentChanged.connect(self.tab_changed)
+        self.fit_tab_heights()
 
         central = QWidget()
         layout = QVBoxLayout(central)
@@ -1528,12 +1609,20 @@ class MusicWindow(QMainWindow):
                                          "the files stay", self.remove_selected)
         self.show_file_button = self.button("Show in folder", None,
                                             "Open the selected song's folder", self.show_in_folder)
-        under = QHBoxLayout()
-        under.addWidget(self.list_label, 1)
         for b in (self.play_selected_button, self.play_next_button, self.queue_button,
                   self.remove_button, self.show_file_button):
             b.setMinimumHeight(52)
-            under.addWidget(b)
+        # The words, then the buttons in two groups: one row when there is room, more
+        # rows on a smaller screen.
+        self.list_buttons = FitRow([
+            row_of(self.play_selected_button, self.play_next_button, self.queue_button),
+            row_of(self.remove_button, self.show_file_button)], spacing=6)
+        self.under_list = FitRow([self.list_label, self.list_buttons], spacing=6, stretch=0)
+        # Shorter words on a smaller screen, so the five buttons keep to one row (fit_list_words).
+        self.list_words = {self.queue_button: ("Add to Up next", "Add"),
+                           self.remove_button: ("Remove from list", "Remove")}
+        under = QHBoxLayout()
+        under.addWidget(self.under_list)
 
         self.empty_hint = QPushButton("Open a folder of music...")
         self.empty_hint.setStyleSheet(f"QPushButton {{ background: {BLUE}; color: white;"
@@ -1686,6 +1775,66 @@ class MusicWindow(QMainWindow):
         layout.addWidget(splitter)
         return page
 
+    def restyle(self, b, short):
+        """A tall button (picture above the word) or a short one (picture beside it)."""
+        b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon if short
+                             else Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        b.setIconSize(QSize(30, 30) if short else QSize(36, 36))
+        b.setMinimumHeight(SECOND_ROW_HEIGHT if short else TRANSPORT_HEIGHT)
+        b.setMinimumWidth(self.transport_widths[b] + (44 if short else 0))
+
+    def transport_stacked(self, stacked):
+        """When the buttons take two rows, the second row's buttons show their word beside
+        the picture, in a shorter button, so the songs below keep more of the height."""
+        for b in (self.shuffle_button, self.repeat_button):
+            self.restyle(b, stacked)
+        self.restyle(self.mute_button, stacked or self.volume_up_top())
+
+    def volume_up_top(self):
+        return self.volume_group.parentWidget() is not self.transport_extras
+
+    def place_volume(self):
+        """Volume and Mute sit at the end of the row of buttons when there is room, and
+        up beside the song's name when there isn't, which keeps the buttons on one row."""
+        room = self.page_scroll.viewport().width() - 12          # the page's own margins
+        up_top = self.volume_up_top()
+        volume = self.volume_group.minimumSizeHint().width()
+        extras = self.transport_extras.minimumSizeHint().width() + (volume + 6 if up_top else 0)
+        fits = room >= self.transport_playing.minimumSizeHint().width() + 14 + extras
+        if fits == (not up_top):
+            return
+        if fits:
+            self.transport_extras.layout().addWidget(self.volume_group)
+        else:
+            self.top_volume_spot.addWidget(self.volume_group)
+        self.restyle(self.mute_button, not fits or self.transport_row.stacked())
+        QTimer.singleShot(0, lambda: self.transport_row.fit(self.transport_row.width()))
+
+    def fit_list_words(self):
+        """The song list's buttons say "Add to Up next" and "Remove from list" when there
+        is room for all five in a row, and "Add" and "Remove" when there isn't."""
+        room = (self.under_list.width() - self.list_label.minimumSizeHint().width()
+                - self.under_list.box.spacing())
+
+        def advance(b, text):
+            return b.fontMetrics().horizontalAdvance(text)
+        longer = sum(advance(b, full) - advance(b, b.text()) for b, (full, _) in self.list_words.items())
+        full_fits = room >= self.list_buttons.one_row_width() + longer
+        changed = False
+        for b, (full, short) in self.list_words.items():
+            words = full if full_fits else short
+            if b.text() != words:
+                b.setText(words)
+                changed = True
+        if changed:
+            QTimer.singleShot(0, lambda: self.list_buttons.fit(self.list_buttons.width()))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "volume_group"):             # not while the window is being made
+            self.place_volume()
+            QTimer.singleShot(0, self.fit_list_words)
+
     def fit_side_panels(self):
         """The folder panel and My stations: as wide as their biggest button
         needs, measured once the window's big words have been put on them."""
@@ -1783,6 +1932,29 @@ class MusicWindow(QMainWindow):
                 menu.addAction(text, slot)
         menu = self.menuBar().addMenu("&Help")
         menu.addAction("&Keys and tips", self.show_help)
+        # In the window's top right corner, on a thin bar under the menus. (Not in the menu
+        # bar's own corner: Windows' screen readers and UI Automation can't see a button there.)
+        self.updates_button = QPushButton("Check for updates")
+        self.updates_button.setToolTip("Open the web page with the newest version of this "
+                                       "program and the others")
+        self.updates_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)   # Space stays Play / Pause
+        self.updates_button.clicked.connect(self.check_for_updates)
+        self.updates_bar = QToolBar("Updates bar")
+        self.updates_bar.setObjectName("updates_bar")
+        self.updates_bar.setMovable(False)
+        self.updates_bar.setFloatable(False)
+        self.updates_bar.toggleViewAction().setVisible(False)   # can't be switched off by mistake
+        gap = QWidget()
+        gap.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.updates_bar.addWidget(gap)
+        self.updates_bar.addWidget(self.updates_button)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.updates_bar)
+
+    def check_for_updates(self):
+        """Opens UPDATES_PAGE in the web browser, or says where to go when that can't be done."""
+        if not QDesktopServices.openUrl(QUrl(UPDATES_PAGE)):
+            QMessageBox.information(self, TITLE, "The web browser could not be opened. To check "
+                                    f"for a newer version, go to:\n\n{UPDATES_PAGE}")
 
     def build_shortcuts(self):
         keys = {
@@ -1902,6 +2074,7 @@ class MusicWindow(QMainWindow):
         extra = 0 if self.radio_bar.isVisible() else self.radio_bar.sizeHint().height()
         return (content.width() + 40,
                 content.height() + extra + self.menuBar().sizeHint().height()
+                + self.updates_bar.sizeHint().height()
                 + self.statusBar().sizeHint().height() + 40)
 
     def first_size(self, restored=False):
@@ -2652,7 +2825,19 @@ class MusicWindow(QMainWindow):
             self.update_position()
 
     # ============================================================== Radio
+    def fit_tab_heights(self):
+        """Only the page on show counts toward the window's size, so the taller Radio page
+        doesn't push My Music's buttons below the bottom of a smaller screen."""
+        for index in range(self.tabs.count()):
+            policy = (QSizePolicy.Policy.Preferred if index == self.tabs.currentIndex()
+                      else QSizePolicy.Policy.Ignored)
+            page = self.tabs.widget(index)
+            page.setSizePolicy(policy, policy)
+            page.updateGeometry()
+        self.tabs.updateGeometry()
+
     def tab_changed(self, index):
+        self.fit_tab_heights()
         if index == 1 and not self.radio_searched:
             self.radio_searched = True
             self.popular_stations()
@@ -3593,10 +3778,84 @@ def listen_for_others(window, name=INSTANCE_NAME):
     return server
 
 
+def can_play(path, wait_s=15):
+    """True when Qt's player can open the song."""
+    from PySide6.QtCore import QEventLoop
+    ready = (QMediaPlayer.MediaStatus.LoadedMedia, QMediaPlayer.MediaStatus.BufferedMedia)
+    done = ready + (QMediaPlayer.MediaStatus.InvalidMedia,)
+    player = QMediaPlayer()
+    player.setAudioOutput(QAudioOutput(player))
+    loop = QEventLoop()
+    player.mediaStatusChanged.connect(lambda status: loop.quit() if status in done else None)
+    QTimer.singleShot(int(wait_s * 1000), loop.quit)
+    player.setSource(QUrl.fromLocalFile(path))
+    if player.mediaStatus() not in done:
+        loop.exec()
+    return player.mediaStatus() in ready
+
+
+def self_test(folder, play=can_play):
+    """Checks every part the program brings: ffmpeg makes songs with names and cover
+    pictures, mutagen reads them back, Qt's player opens them, and the parts that work
+    Spotify (Windows' media controls and volume mixer) load. Radio needs the internet,
+    so only its ffmpeg is checked. Writes self-test.txt in folder; returns 0 when every
+    check passed. Run as:  "Music Player.exe" --selftest <folder>"""
+    os.makedirs(folder, exist_ok=True)
+    lines, passed = [], True
+
+    def check(ok, text):
+        nonlocal passed
+        passed = passed and bool(ok)
+        lines.append(("PASS " if ok else "FAIL ") + text)
+
+    def ffmpeg(*args):
+        subprocess.run([radio.ffmpeg_path(), "-hide_banner", "-v", "error", "-y", *args],
+                       check=True, capture_output=True,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+    try:
+        cover = os.path.join(folder, "cover.jpg")
+        ffmpeg("-f", "lavfi", "-i", "color=c=orange:s=64x64:d=1", "-frames:v", "1", cover)
+        for ext, codec, picture in ((".mp3", [], "mjpeg"), (".flac", [], "png"),
+                                    (".m4a", ["-c:a", "aac"], "mjpeg")):
+            path = os.path.join(folder, "Sample song" + ext)
+            ffmpeg("-f", "lavfi", "-i", "sine=frequency=440:duration=5", "-i", cover,
+                   "-map", "0:a", "-map", "1:v", "-c:v", picture, "-disposition:v", "attached_pic",
+                   *codec, "-metadata", "title=Test Tune", "-metadata", "artist=The Testers", path)
+            track = engine.read_track(path)
+            check(track.title == "Test Tune" and track.artist == "The Testers"
+                  and abs(track.length - 5) < 0.3,
+                  f"{ext} names and length read: {track.artist} - {track.title}, {track.length:.1f} s")
+            check(bool(engine.embedded_picture(path)), f"{ext} cover picture read")
+        check(play(os.path.join(folder, "Sample song.mp3")), "the player opened a song")
+    except Exception as error:  # noqa: BLE001 - every failure goes in the report
+        check(False, f"songs: {type(error).__name__}: {error}")
+    try:
+        import winrt.windows.media                                   # noqa: F401
+        import winrt.windows.media.control                           # noqa: F401
+        import winrt.windows.storage.streams                         # noqa: F401
+        check(True, "Windows media controls (for Spotify's buttons) load")
+    except Exception as error:  # noqa: BLE001
+        check(False, f"Windows media controls: {type(error).__name__}: {error}")
+    try:
+        from pycaw.pycaw import AudioUtilities
+        sessions = AudioUtilities.GetAllSessions()
+        check(True, f"Windows volume mixer (for Spotify's volume) answered: {len(sessions)} sounds")
+    except Exception as error:  # noqa: BLE001
+        check(False, f"volume mixer: {type(error).__name__}: {error}")
+    lines.append("ALL PASSED" if passed else "SOME FAILED")
+    with open(os.path.join(folder, "self-test.txt"), "w", encoding="utf-8") as out:
+        out.write("\n".join(lines) + "\n")
+    return 0 if passed else 1
+
+
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName(TITLE)
     app.setFont(QFont("Segoe UI", 10))
+    if sys.argv[1:2] == ["--selftest"]:
+        sys.exit(self_test(sys.argv[2] if len(sys.argv) > 2 else os.path.join(
+            os.environ.get("TEMP", "."), "Music Player self-test")))
     paths = sys.argv[1:]
     if hand_over(paths):
         return

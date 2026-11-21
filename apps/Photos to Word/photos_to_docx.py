@@ -37,12 +37,16 @@ import site
 import subprocess
 import sys
 import traceback
+import webbrowser
 from functools import lru_cache
 from math import floor, inf
 from statistics import median, median_low
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+
+# The "Check for updates" button opens this page, which has the newest version of every program.
+UPDATES_PAGE = "https://djt1953.github.io/office-tools-and-learning-games/"
 
 REQUIRED = {"PIL": "pillow", "pytesseract": "pytesseract", "docx": "python-docx"}
 
@@ -65,7 +69,10 @@ def show_crash(kind, value, tb):
 
 def install_missing():
     """Double-clicking can start a different Python from the one pip installed
-    into, so offer to add whatever this one lacks."""
+    into, so offer to add whatever this one lacks. A built copy (the .exe from
+    Setup) already has everything inside it and has no pip, so it never asks."""
+    if getattr(sys, "frozen", False):
+        return
     missing = [pip for module, pip in REQUIRED.items()
                if importlib.util.find_spec(module) is None]
     if not missing:
@@ -128,7 +135,23 @@ METRICS = ImageFont.truetype(FONT_FILE, 1000)
 
 
 # ---------------------------------------------------------------- helpers
+def bundled_tesseract():
+    """The copy of Tesseract packed inside the built program (the .exe from
+    Setup), or None when running as a plain .py file."""
+    base = getattr(sys, "_MEIPASS", None)
+    if base:
+        exe = os.path.join(base, "tesseract", "tesseract.exe")
+        if os.path.isfile(exe):
+            return exe
+    return None
+
+
 def find_tesseract():
+    bundled = bundled_tesseract()
+    if bundled:     # always use our own copy, whatever else is on the PC
+        pytesseract.pytesseract.tesseract_cmd = bundled
+        os.environ["TESSDATA_PREFIX"] = os.path.join(os.path.dirname(bundled), "tessdata")
+        return
     if shutil.which("tesseract"):
         return
     for p in (r"C:\Program Files\Tesseract-OCR\tesseract.exe",
@@ -545,6 +568,19 @@ def combined_name(folder):
 
 
 # ---------------------------------------------------------------- main
+def open_updates_page(win):
+    """Opens UPDATES_PAGE in the web browser, or says where to go when that can't be done.
+    The window stops staying on top of others, so the browser can come in front of it."""
+    win.attributes("-topmost", False)
+    try:
+        opened = webbrowser.open(UPDATES_PAGE)
+    except Exception:
+        opened = False
+    if not opened:
+        messagebox.showinfo("Photos to Word", "The web browser could not be opened. To check for "
+                            f"a newer version, go to:\n\n{UPDATES_PAGE}", parent=win)
+
+
 def ask_mode():
     """Ask with two buttons how the text should be saved. Returns "each",
     "one", or None if the window is closed or cancelled."""
@@ -560,6 +596,9 @@ def ask_mode():
 
     frame = ttk.Frame(win, padding=18)
     frame.pack()
+    bar = ttk.Frame(frame)                               # "Check for updates" in the top right corner
+    bar.pack(fill="x", pady=(0, 10))
+    ttk.Button(bar, text="Check for updates", command=lambda: open_updates_page(win)).pack(side="right")
     ttk.Label(frame, text="How should the text from the photos be saved?").pack(anchor="w", pady=(0, 12))
     first = ttk.Button(frame, text="One Word file for each photo", command=lambda: pick("each"))
     first.pack(fill="x", ipady=6, pady=3)

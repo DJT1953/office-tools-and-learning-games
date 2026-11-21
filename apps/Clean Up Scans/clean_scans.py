@@ -37,12 +37,15 @@ import subprocess
 import sys
 import threading
 import traceback
+import webbrowser
 from math import hypot
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 TITLE = "Clean Up Scans"
+# The "Check for updates" button opens this page, which has the newest version of every program.
+UPDATES_PAGE = "https://djt1953.github.io/office-tools-and-learning-games/"
 REQUIRED = {"PIL": "pillow", "numpy": "numpy", "cv2": "opencv-python-headless"}
 
 
@@ -64,7 +67,10 @@ def show_crash(kind, value, tb):
 
 def install_missing():
     """Double-clicking can start a different Python from the one pip installed
-    into, so offer to add whatever this one lacks."""
+    into, so offer to add whatever this one lacks. A built copy (the .exe from
+    Setup) already has everything inside it and has no pip, so it never asks."""
+    if getattr(sys, "frozen", False):
+        return
     missing = [pip for module, pip in REQUIRED.items()
                if importlib.util.find_spec(module) is None]
     if not missing:
@@ -823,10 +829,16 @@ class App:
         self.build()
 
     def build(self):
+        # A thin bar across the top with "Check for updates" in the right corner
+        bar = ttk.Frame(self.root, padding=(12, 8, 12, 0))
+        bar.grid(row=0, sticky="ew")
+        self.updates_button = ttk.Button(bar, text="Check for updates", command=self.check_for_updates)
+        self.updates_button.pack(side="right")
+
         frame = ttk.Frame(self.root, padding=12)
-        frame.grid(sticky="nsew")
+        frame.grid(row=1, sticky="nsew")
         self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
+        self.root.rowconfigure(1, weight=1)
         frame.columnconfigure(1, weight=1)
         frame.rowconfigure(8, weight=1)
 
@@ -888,6 +900,16 @@ class App:
 
         ttk.Label(frame, textvariable=self.status, wraplength=700, justify="left"
                   ).grid(row=9, column=0, columnspan=3, sticky="w")
+
+    def check_for_updates(self):
+        """Opens UPDATES_PAGE in the web browser, or says where to go when that can't be done."""
+        try:
+            opened = webbrowser.open(UPDATES_PAGE)
+        except Exception:
+            opened = False
+        if not opened:
+            messagebox.showinfo(TITLE, "The web browser could not be opened. To check for a newer "
+                                f"version, go to:\n\n{UPDATES_PAGE}", parent=self.root)
 
     def browse(self):
         chosen = filedialog.askdirectory(title="Pick the folder of pictures", parent=self.root)

@@ -5,6 +5,9 @@ WHAT IT DOES
   Plays the music on this computer, internet radio, and Spotify, with big
   buttons and big words.
   - MY MUSIC: open a folder and every song in it and its subfolders plays.
+    "Open a folder..." swaps the whole list for that folder's songs, subfolders
+    included, and starts playing them. "Add a folder..." adds that folder's songs
+    to the end of the list you already have.
     Your last 4 folders stay as buttons. Search the list, sort it, shuffle,
     repeat, change the speed, and save or open playlists. The list and the
     place in the song are remembered for next time.
@@ -70,3 +73,6 @@ GOOD TO KNOW
     back as it was.
   - Your music files are never changed, moved or deleted. Remove from list
     and Clear the list only take songs off the player's list.
+  - On a smaller screen the player keeps its buttons on screen: Volume and Mute
+    move up beside the song's name, and under the list "Add to Up next" shows
+    as "Add" and "Remove from list" as "Remove". They do the same thing.

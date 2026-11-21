@@ -315,5 +315,37 @@ try {
 } finally {
     try { [IO.Directory]::Delete($Root, $true) } catch {}
 }
+
+'--- the "Check for updates" button, taken from the window (Document Renamer.ps1)'
+Add-Type -AssemblyName System.Windows.Forms
+$errs = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $AppDir 'Document Renamer.ps1'), [ref]$null, [ref]$errs)
+function Get-FunctionAst([string]$Name) {
+    return $ast.Find({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $Name }, $true)
+}
+foreach ($name in 'Show-Message', 'New-Button', 'Open-UpdatesPage', 'New-HeadingRow') { . ([scriptblock]::Create((Get-FunctionAst $name).Extent.Text)) }
+$set = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -eq '$script:UpdatesPage' }, $true)
+. ([scriptblock]::Create($set.Extent.Text))
+$uses = (Get-FunctionAst 'Show-PreviewForm').Find({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'New-HeadingRow' }, $true)
+Check 'the main window has the row with the button at the top' ([bool]$uses) 'True'
+$row = New-HeadingRow (New-Object System.Windows.Forms.Label)
+$btn = $row.Controls[1]
+Check 'button words' $btn.Text 'Check for updates'
+Check 'button sits in the right corner' ([string]$btn.Anchor) 'Top, Right'
+$click = [System.Windows.Forms.Button].GetMethod('OnClick', [Reflection.BindingFlags]'NonPublic, Instance')
+$env:CHECK_UPDATES_TEST_FILE = [IO.Path]::GetTempFileName()
+try {
+    [void]$click.Invoke($btn, @([EventArgs]::Empty))
+    Check 'a click opens the download page' ((Get-Content -LiteralPath $env:CHECK_UPDATES_TEST_FILE -Raw).Trim()) 'https://djt1953.github.io/office-tools-and-learning-games/'
+} finally {
+    Remove-Item -LiteralPath $env:CHECK_UPDATES_TEST_FILE -ErrorAction SilentlyContinue
+    Remove-Item Env:CHECK_UPDATES_TEST_FILE
+}
+function Start-Process { throw 'no web browser' }
+function Show-Message([string]$Text) { $script:Told = $Text }
+$script:Told = ''
+[void]$click.Invoke($btn, @([EventArgs]::Empty))
+Check 'with no web browser it says where the page is' ($script:Told -like '*go to:*https://djt1953.github.io/office-tools-and-learning-games/') 'True'
+Remove-Item Function:Start-Process, Function:Show-Message
 ''
 if ($script:Failures) { "$($script:Failures) check(s) FAILED"; exit 1 } else { 'All checks passed.' }

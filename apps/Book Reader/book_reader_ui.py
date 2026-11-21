@@ -161,8 +161,9 @@ def choose_folder(parent: QWidget | None, title: str, folder: str) -> str:
     return QFileDialog.getExistingDirectory(parent, title, folder)
 
 
-def open_url(url: str) -> None:
-    QDesktopServices.openUrl(QUrl(url))
+def open_url(url: str) -> bool:
+    """Opens a web page in the web browser. False when the browser couldn't be opened."""
+    return QDesktopServices.openUrl(QUrl(url))
 
 
 def move_to_trash(path: str) -> bool:
