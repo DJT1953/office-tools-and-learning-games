@@ -1,0 +1,74 @@
+PHOTO STITCHER - how to use it
+==============================
+
+WHAT IT DOES
+  Joins overlapping photos into one big picture, a panorama. The photos can
+  go side by side, top to bottom, or in rows and columns, and you can add
+  them in any order: the program works out where each one goes. It evens out
+  the brightness between photos and hides the seams.
+  Your photos themselves are never changed, moved or deleted.
+
+START IT
+  Double-click Run_PhotoStitcher.bat (or a shortcut to it).
+
+JOIN PHOTOS
+  1. Pick the photos: click "Add photos", or "Add a folder" to take every
+     photo in a folder. To take one off the list, click it and click
+     "Remove picked" (hold Ctrl to pick several).
+  2. Say what kind of photos they are:
+       - Taken by turning the camera: landscapes, rooms, buildings.
+       - Flat things shot or scanned in parts: documents, maps, walls.
+     If they fit the other kind better, the program uses that one and says so.
+     Photos of different sizes (another camera, or zoomed) are fine.
+  3. Click "Stitch the photos". A clock shows how long it has been working.
+     A few photos take seconds; many big photos can take a few minutes.
+     "Cancel" stops it at once.
+  4. Look at the picture. "Trim the ragged black edges" cuts it to a clean
+     rectangle (untick it to see everything). Under "Save as", pick JPG
+     (smaller file), PNG (full quality, bigger file) or TIFF. Then click
+     "Save the panorama". "Open it" shows the saved picture; "Open the folder"
+     shows where it is. Panoramas are saved in your Pictures folder, in
+     "Panoramas", unless you pick another place.
+
+  The words under the picture say how many photos were joined, and name any
+  photo that was left out and why.
+
+STEP 5 - ADJUST (OPTIONAL)
+  Click "Turn, square up, crop or resize". If the panorama isn't saved yet,
+  the program saves it first, so you keep the plain panorama as well. A big
+  Adjust window opens:
+    1. Turn: "Turn left" or "Turn right" turns it a quarter turn. The
+       Straighten slider tilts it up to 15 degrees either way; the black
+       corners that leaves are trimmed off by themselves.
+    2. Square up: click "Square up", drag the 4 white dots onto the corners of
+       something that should be a rectangle (a building, a document), then
+       click Apply. The picture is straightened so that shape is square.
+    3. Crop: click "Draw a crop", drag a box over the part to keep, then click
+       Apply.
+    4. Size: Full size, 3/4, 1/2 or 1/4 (smaller files for email or the web).
+    5. "Undo" takes back the last change; "Start over" goes back to the plain
+       panorama. "Save as" saves the adjusted panorama as a new file (it
+       suggests the plain one's name plus "adjusted"). "Exit" closes the window
+       and asks first if the adjustments aren't saved.
+  Your plain panorama is never changed.
+
+FOR GOOD RESULTS
+  - Let each photo overlap the next by about a third.
+  - For landscapes, stand in one spot and turn; don't walk between photos.
+  - Photos with clear details join best. Plain sky, water or a white wall
+    have little to match.
+  - Phone photos (JPG or iPhone HEIC), scans (PNG, TIFF, BMP) and WebP all
+    work.
+
+WHAT IT NEEDS
+  1. Windows 10 or 11.
+  2. Python 3.10 or newer (tested with 3.14), from
+     https://www.python.org/downloads/windows/
+  3. These free add-ons. On first start Photo Stitcher offers to download and
+     install them (about 72 MB, once; needs an internet connection):
+       OpenCV ....... https://pypi.org/project/opencv-python-headless/
+       numpy ........ https://pypi.org/project/numpy/
+       Pillow ....... https://pypi.org/project/pillow/
+       pillow-heif .. https://pypi.org/project/pillow-heif/ (iPhone HEIC photos)
+  The Setup version (Photo Stitcher Setup.exe) has everything inside it and
+  needs nothing else.

@@ -14,10 +14,11 @@ workbook's input cells, is use and not modification.
 GitHub's Terms of Service let GitHub users view and fork public repositories.
 That does not grant any other right in this work.
 
-Song Cleaner and Music Player (apps/Song Cleaner and apps/Music Player) are not
-covered by the terms above. They are free software: you can share them and change
-them under the GNU General Public License, version 3 or (at your option) any later
-version, in licenses/GPL-3.0.txt in each of their folders.
+Song Cleaner, Music Player and Photo Stitcher (apps/Song Cleaner, apps/Music Player
+and apps/Photo Stitcher) are not covered by the terms above. They are free software:
+you can share them and change them under the GNU General Public License, version 3
+or (at your option) any later version, in licenses/GPL-3.0.txt in each of their
+folders.
 
 Some programs download or use separate software, such as Python packages,
 ffmpeg, Tesseract, Microsoft Word, LibreOffice and Google Fonts. That software
