@@ -39,6 +39,7 @@ class Report:
     done: int = 0
     skipped: list = dataclasses.field(default_factory=list)     # (file name, why)
     stopped: bool = False
+    can_retry: bool = False   # Undo: some songs were in use; pressing Undo again finishes the job
 
 
 def default_log():
@@ -172,7 +173,11 @@ def _restore_tag_bytes(path, saved):
             out.write(block)
             left -= len(block)
         out.write(base64.b64decode(saved["tail"]))
-    os.replace(temp, path)
+    try:
+        os.replace(temp, path)
+    except OSError:
+        os.remove(temp)                                  # no half-made file left among the songs
+        raise
 
 
 def _read_tags(path):
@@ -291,10 +296,20 @@ def has_undo(log_path=None):
     return os.path.exists(log_path or default_log())
 
 
+def _keep_for_later(log_path, header, steps):
+    """Undo couldn't finish: the log keeps only what is still to be put back."""
+    temp = log_path + ".saving"
+    with open(temp, "w", encoding="utf-8") as file:
+        for entry in ([header] if header else []) + steps:
+            file.write(json.dumps(entry) + "\n")
+    os.replace(temp, log_path)
+
+
 def undo(log_path=None, progress=None):
-    """Put back everything the last Apply did, newest first."""
+    """Put back everything the last Apply did, newest first. A song another
+    program is using stays on the log, so Undo can be pressed again for it."""
     log_path = log_path or default_log()
-    steps = []
+    header, steps = None, []
     try:
         with open(log_path, encoding="utf-8") as file:
             for line in file:
@@ -304,13 +319,20 @@ def undo(log_path=None, progress=None):
                     continue                             # a line cut short by a crash
                 if "op" in entry:
                     steps.append(entry)
+                elif header is None and "folder" in entry:
+                    header = entry
     except OSError as error:
         raise SongError("There is nothing to undo.") from error
     report = Report()
+    later = []              # steps to try again, newest first
+    waiting = set()         # songs whose newer step must go back first, so older ones wait too
     for number, step in enumerate(reversed(steps), 1):
         name = os.path.basename(step["src"])
         if progress:
             progress(number, len(steps), name)
+        if os.path.normcase(step["src"]) in waiting:
+            later.append(step)
+            continue
         try:
             if step["op"] == "move":
                 if os.path.exists(step["dst"]):
@@ -346,12 +368,21 @@ def undo(log_path=None, progress=None):
                         continue
                     os.rename(now, step["src"])
                 report.done += 1
-        except OSError as error:
+        except OSError as error:                         # in use, or read-only: may work later
             report.skipped.append((name, _plain(error)))
-    try:
-        os.replace(log_path, log_path + ".undone")
-    except OSError:
-        pass
+            later.append(step)
+            waiting.add(os.path.normcase(step["src"]))
+    if later:
+        report.can_retry = True
+        try:
+            _keep_for_later(log_path, header, later[::-1])
+        except OSError:
+            pass                    # the whole log stays; steps already done are passed over
+    else:
+        try:
+            os.replace(log_path, log_path + ".undone")
+        except OSError:
+            pass
     for folder in {os.path.dirname(s.get("dst") or s.get("kept") or "") for s in steps
                    if s["op"] in ("move", "trim")}:
         try:

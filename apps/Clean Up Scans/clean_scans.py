@@ -809,6 +809,20 @@ def run_batch(folder, target, settings, report, stop):
 
 
 # ----------------------------------------------------------------- the window
+def work_area(root):
+    """(left, top, width, height) of the screen space not covered by the taskbar."""
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+            rect = wintypes.RECT()
+            if ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0):  # SPI_GETWORKAREA
+                return rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top
+        except Exception:
+            pass
+    return 0, 0, root.winfo_screenwidth(), root.winfo_screenheight() - 60
+
+
 class App:
     def __init__(self):
         self.root = tk.Tk()
@@ -827,6 +841,20 @@ class App:
         self.whiten = tk.BooleanVar(value=True)
         self.status = tk.StringVar(value="Choose a folder of pictures to begin.")
         self.build()
+        self.fit_to_screen()
+
+    def fit_to_screen(self):
+        """One fixed size that fits above the taskbar. Without it Tk resized the window to
+        every new status message, so it jumped during a run and could drop below a small screen."""
+        root = self.root
+        root.update_idletasks()
+        left, top, width, height = work_area(root)
+        w = min(root.winfo_reqwidth(), width - 20)
+        h = min(root.winfo_reqheight(), height - 50)         # 50 = title bar and window edges
+        x = left + max(0, (width - w) // 2)
+        y = top + max(0, (height - h - 40) // 2)
+        root.geometry(f"{w}x{h}+{x}+{y}")
+        root.minsize(min(w, 700), min(h, 420))
 
     def build(self):
         # A thin bar across the top with "Check for updates" in the right corner
@@ -898,8 +926,8 @@ class App:
         scroll.grid(row=0, column=1, sticky="ns")
         self.list.configure(yscrollcommand=scroll.set)
 
-        ttk.Label(frame, textvariable=self.status, wraplength=700, justify="left"
-                  ).grid(row=9, column=0, columnspan=3, sticky="w")
+        self.status_label = ttk.Label(frame, textvariable=self.status, wraplength=700, justify="left")
+        self.status_label.grid(row=9, column=0, columnspan=3, sticky="nw")
 
     def check_for_updates(self):
         """Opens UPDATES_PAGE in the web browser, or says where to go when that can't be done."""

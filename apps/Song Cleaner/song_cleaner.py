@@ -626,6 +626,11 @@ class MainWindow(QMainWindow):
             text = f"Put back: {report.done:,} changes."
             if report.skipped:
                 text += "\n\nCould not put back:\n" + "\n".join(f"{n}: {w}" for n, w in report.skipped[:15])
+                if len(report.skipped) > 15:
+                    text += f"\n...and {len(report.skipped) - 15:,} more."
+            if report.can_retry:
+                text += ("\n\nClose any program that is playing or using those songs (the Music Player, "
+                         "for example), then press Undo last Apply again to finish.")
             self.tell(text)
             if self.folder:
                 QTimer.singleShot(0, lambda: self.start_scan(quiet=True))

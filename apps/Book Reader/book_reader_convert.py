@@ -256,9 +256,11 @@ def save_word(html_path: str, out: str, stop: threading.Event | None = None, tim
     import comtypes.client
     comtypes.CoInitialize()
     word = None
+    alerts = None
     try:
         word = comtypes.client.CreateObject("Word.Application", dynamic=True)
         word.Visible = False
+        alerts = word.DisplayAlerts
         word.DisplayAlerts = 0
         _check(stop)
         # Word's late-bound methods take their arguments in order, not by name:
@@ -283,7 +285,14 @@ def save_word(html_path: str, out: str, stop: threading.Event | None = None, tim
     finally:
         if word is not None:
             try:
-                word.Quit(0)
+                if word.Documents.Count == 0:
+                    word.Quit(0)
+                else:
+                    # A document double-clicked meanwhile can open in this hidden Word:
+                    # quitting would close it unsaved, so leave Word to its owner and show it.
+                    if alerts is not None:
+                        word.DisplayAlerts = alerts
+                    word.Visible = True
             except Exception:
                 pass
         word = None

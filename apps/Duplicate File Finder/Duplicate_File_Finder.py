@@ -50,6 +50,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import traceback
 import webbrowser
 import xml.etree.ElementTree as ET
 import zipfile
@@ -341,14 +342,22 @@ def quick_hash(path, size):
     return h.hexdigest()
 
 
+def eight_bit(im):
+    """16-bit pictures (high-quality scans) -> 8-bit; as they are, they turn all white.
+    Pillow can't scale the Mac byte order (I;16B) directly, so it is made plain first."""
+    if im.mode.startswith("I"):
+        if im.mode not in ("I", "I;16"):
+            im = im.convert("I")
+        im = im.point(lambda v: v * (1.0 / 256.0))
+    return im
+
+
 def photo_print(path):
     """256-bit 'look' fingerprint of a picture. Raises if it cannot be read."""
     with Image.open(path) as im:
         width, height = im.size
         im.draft("L", (128, 128))           # JPEGs: decode at reduced size (much faster)
-        im = ImageOps.exif_transpose(im)    # respect the rotation stored by phones
-        if im.mode.startswith("I"):         # 16-bit pictures -> 8-bit
-            im = im.point(lambda v: v * (1.0 / 256.0))
+        im = eight_bit(ImageOps.exif_transpose(im))    # respect the rotation stored by phones
         small = im.convert("L").resize((HASH_SIZE + 1, HASH_SIZE), _BOX)
     data = small.tobytes()
     stride = HASH_SIZE + 1
@@ -358,6 +367,15 @@ def photo_print(path):
         for col in range(HASH_SIZE):
             bits = (bits << 1) | (1 if data[base + col] > data[base + col + 1] else 0)
     return PhotoPrint(width, height, bits, sum(data) / len(data))
+
+
+def preview_image(path, maxsize):
+    """The small picture shown beside a copy, the right way up."""
+    with Image.open(path) as im:
+        im.draft("RGB", (maxsize[0] * 2, maxsize[1] * 2))
+        im = eight_bit(ImageOps.exif_transpose(im)).convert("RGB")
+    im.thumbnail(maxsize)
+    return im
 
 
 def _encode_photo(pp):
@@ -1292,6 +1310,30 @@ def explain(exc):
     return "it could not be moved (%s)" % (getattr(exc, "strerror", None) or exc)
 
 
+class LogBusy(Exception):
+    """The list of moves is open in another program, usually Excel, so a move or
+    Undo couldn't write down what it did. Nothing has been changed."""
+
+
+def log_in_use(log_path):
+    """True if the list of moves exists but can't be saved over now. Excel lets
+    other programs read a file it has open, but not change it."""
+    if os.name != "nt" or not os.path.isfile(log_path):
+        return False
+    import ctypes
+    from ctypes import wintypes
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+                                   wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    # write and delete, as saving the list needs; share with everyone; open the existing file only
+    handle = kernel.CreateFileW(log_path, 0x40000000 | 0x10000, 0x7, None, 3, 0x80, None)
+    if handle in (None, ctypes.c_void_p(-1).value):
+        return True
+    kernel.CloseHandle(handle)
+    return False
+
+
 def read_log(log_path):
     if not os.path.isfile(log_path):
         return []
@@ -1312,8 +1354,10 @@ def move_copies(root, moves, mode, progress=None):
     """moves: list of (copy_path, keeper_path, how). Each copy goes into the review
     folder and is logged. Returns a dict with moved, skipped, failed, run_id."""
     review = os.path.join(root, REVIEW_NAME)
-    os.makedirs(review, exist_ok=True)
     log_path = os.path.join(review, LOG_NAME)
+    if log_in_use(log_path):
+        raise LogBusy(log_path)
+    os.makedirs(review, exist_ok=True)
     now = datetime.now()
     base_id = now.strftime("%Y%m%d-%H%M%S")
     run_id, used, k = base_id, {r.get("run_id") for r in read_log(log_path)}, 2
@@ -1356,6 +1400,8 @@ def move_copies(root, moves, mode, progress=None):
 def undo_last_move(root):
     """Put back everything from the most recent move not yet undone. None if nothing to undo."""
     log_path = os.path.join(root, REVIEW_NAME, LOG_NAME)
+    if log_in_use(log_path):
+        raise LogBusy(log_path)
     rows = read_log(log_path)
     pending = [r for r in rows if r.get("undone") != "1"]
     if not pending:
@@ -1715,11 +1761,7 @@ class App:
     def _thumb(self, path, maxsize=(350, 180)):
         try:
             from PIL import ImageTk
-            with Image.open(path) as im:
-                im.draft("RGB", (maxsize[0] * 2, maxsize[1] * 2))
-                im = ImageOps.exif_transpose(im).convert("RGB")
-                im.thumbnail(maxsize)
-                return ImageTk.PhotoImage(im)
+            return ImageTk.PhotoImage(preview_image(path, maxsize))
         except Exception:
             return None
 
@@ -1763,6 +1805,13 @@ class App:
         self._update_summary()
         self._refresh()
 
+    def _log_busy(self, busy, what, button):
+        self.status_var.set(what + " The list of moved files is open in another program.")
+        messagebox.showwarning(
+            "Duplicate File Finder",
+            "%s\n\nThe list of moved files is open in another program, most likely Excel:\n\n%s\n\n"
+            "Close it there, then press \"%s\" again." % (what, busy.args[0], button))
+
     def move_all(self):
         if not self.rows or self.busy:
             return
@@ -1780,7 +1829,11 @@ class App:
             self.status_var.set("Moving... %d of %d" % (i, total))
             self.root.update_idletasks()
 
-        res = move_copies(self.scan_root, moves, self.scan_mode, prog)
+        try:
+            res = move_copies(self.scan_root, moves, self.scan_mode, prog)
+        except LogBusy as busy:
+            self._log_busy(busy, "Nothing was moved.", "4. Move all listed copies")
+            return
         left_behind = {p for p, _why in res["failed"]}
         if left_behind:
             self._keep_only(left_behind)
@@ -1811,7 +1864,11 @@ class App:
         if not messagebox.askyesno("Undo last move?",
                                    "Put the copies from the most recent move back where they came from?"):
             return
-        res = undo_last_move(self.root_dir)
+        try:
+            res = undo_last_move(self.root_dir)
+        except LogBusy as busy:
+            self._log_busy(busy, "Nothing was put back.", "Undo last move")
+            return
         self._clear_results()
         if res is None:
             msg = "There is nothing left to undo."
@@ -2187,6 +2244,24 @@ def self_test():
     return 0
 
 
+def show_crash(kind, value, tb):
+    """The program runs without a console window, so an unexpected error would
+    vanish and the click would seem to do nothing: show it in a box instead."""
+    text = "".join(traceback.format_exception(kind, value, tb))
+    print(text)
+    try:
+        messagebox.showerror("Duplicate File Finder", "Something went wrong:\n\n" + text[-1500:])
+    except Exception:
+        pass
+
+
+def make_root():
+    """The main window, with errors after a click shown in a box."""
+    root = tk.Tk()
+    root.report_callback_exception = show_crash
+    return root
+
+
 def main():
     if "--selftest" in sys.argv:
         sys.exit(self_test())
@@ -2200,7 +2275,8 @@ def main():
             ctypes.windll.shcore.SetProcessDpiAwareness(1)
         except Exception:
             pass
-    root = tk.Tk()
+    sys.excepthook = show_crash
+    root = make_root()
     App(root)
     root.mainloop()
     os._exit(0)   # window closed: stop any background scan at once
