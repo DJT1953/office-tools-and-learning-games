@@ -1,0 +1,97 @@
+DATING PHOTOGRAPHS - how to use it
+==================================
+
+WHAT IT DOES
+  Reads the dates written on your old photos - on the front, the white border,
+  or the back - and renames each photo by its date, like 1998-10-01.jpg, in a
+  folder called "Dated Photographs" inside the folder you pick. Sorted by name,
+  your photos are then in date order. It can also print the date on each
+  photo in orange, the way a film camera did.
+  It reads handwriting as well as print, and the orange date a film camera
+  prints in the corner. Everything happens on this computer: nothing is uploaded.
+
+  How dates are understood:
+    Oct-98, 98-Oct, Oct '98, October 1998 ...... 1998-10-01 (no day: the 1st)
+    June 12, 1975 / 12 June 1975 / 6/12/75 ..... 1975-06-12
+    '98 10 12 (a camera's printed date) ........ 1998-10-12
+    Christmas 1987 / Easter 1979 ............... 1987-12-25 / 1979-04-15
+    Summer '82 ................................. 1982-07-01 (Spring Apr, Fall Oct, Winter Jan)
+    1998 or '98 alone .......................... 1998-01-01
+  Two-digit years after this year's (like '27) are taken as the 1900s.
+
+START IT
+  Double-click Run_DatingPhotos.bat (or a shortcut to it).
+
+DATE YOUR PHOTOS
+  1. Click "Pick a folder" and pick the folder of photos.
+     - "Include photos in sub-folders" takes the folders inside it too.
+     - If you scanned the BACKS of the photos as their own files, name them
+       like their fronts (IMG_0001.jpg and IMG_0001_b.jpg, or
+       IMG_0001 back.jpg) and they are found by themselves. If instead you
+       scanned the front, then the back, then the next front, tick "Every
+       second photo is the back of the one before it".
+  2. Click "Find the dates". Each photo takes a few seconds. "Stop" stops
+     after the photo being read; clicking "Find the dates" again carries on.
+     You can start checking the photos already read while you wait.
+  3. Check the dates. Click a photo in the list to see it on the right, with a
+     red box round the words its date came from (the back shows beside the
+     front). Then:
+       - to change the date, type it in the Date box (1998-10-01, Oct 98 or
+         1998 all work) and click "Use this date" or press Enter;
+       - "Other dates found" lists any other dates in the writing;
+       - "Skip this photo" leaves it where it is.
+     Only ticked photos are moved. Click a tick to untick it.
+     Dates in orange say "check this": the writing was hard to read, so they
+     start unticked. Photos in red had no date found.
+  4. Pick what to do with the dates, then click the big button (its words
+     follow your choices: "Rename and move", "Print dates and move" or
+     "Rename, print dates, move"). It asks first, then moves the ticked photos
+     into "Dated Photographs". Photos without a date stay where they are.
+       - "Rename each photo by its date" (on to start with): 1998-10-01.jpg.
+         A photo's back goes with it (1998-10-01_b.jpg). Two photos from the
+         same day become 1998-10-01.jpg and 1998-10-01 (2).jpg.
+         "Keep the old name after the date" makes it 1998-10-01 IMG_0001.jpg.
+       - "Print the date on each photo in orange, like a film camera": prints
+         the date in the bottom-right corner, sized to the photo and inside any
+         white border. Pick how it looks: '98 10 12, 10 12 '98 or 1998-10-12.
+         Only what is known is printed: a photo dated "Oct-98" gets '98 10.
+         The photo on the right shows how it will look before you move it.
+         An untouched copy of each photo is kept in Dated Photographs\
+         "Originals (no printed date)", and Undo puts that copy back.
+         (JPG, PNG, TIFF, BMP and WebP only; not on backs.)
+       - "Set each photo's Date taken to its date" (on to start with): writes
+         the date into the photo's information, so Windows Photos and other
+         photo programs file it under the right year. A scan otherwise carries
+         the day it was scanned. The picture itself is not touched by this.
+       - "Put them in a folder for each year": Dated Photographs\1998\...
+
+  Changed your mind? "Undo the last move" puts the last batch back, with their
+  old names and dates. "Open Dated Photographs" shows the folder.
+  Every move is listed in Dated Photographs\Dating Photographs log.csv,
+  which opens in Excel. Close it in Excel before moving or undoing: while it
+  is open, the program can't add to the list, so it stops and tells you.
+  To date more photos later, pick the folder your photos are in, not
+  "Dated Photographs" itself.
+
+FOR GOOD RESULTS
+  - Scan at 300 dpi or more. Faint pencil reads better on a darker scan.
+  - JPG, PNG, TIFF, BMP, GIF and WebP pictures all work. iPhone HEIC photos
+    can't be opened: save them as JPG first.
+  - Handwriting can be misread: check the dates before moving, especially the
+    orange "check this" ones.
+
+WHAT IT NEEDS
+  1. Windows 10 or 11.
+  2. Python 3.10 or newer (tested with 3.14), from
+     https://www.python.org/downloads/windows/
+  3. These free add-ons. On first start Dating Photographs offers to download
+     and install them, with the handwriting reader's data (about 120 MB, once;
+     needs an internet connection):
+       Pillow ....... https://pypi.org/project/pillow/
+       RapidOCR ..... https://pypi.org/project/rapidocr/ (reads handwriting)
+       onnxruntime .. https://pypi.org/project/onnxruntime/
+       pytesseract .. https://pypi.org/project/pytesseract/
+  4. Optional: Tesseract OCR, which helps with printed words:
+       https://github.com/UB-Mannheim/tesseract/wiki
+  The Setup version (Dating Photographs Setup.exe) has everything inside it
+  and needs nothing else.
