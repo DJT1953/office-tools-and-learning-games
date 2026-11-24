@@ -550,7 +550,7 @@ class MainWindow(QMainWindow):
             return
         need_program = online.fpcalc_path() is None
         if need_program and not self.ask(
-                "To recognise songs, a small free program (Chromaprint fpcalc, about 4 MB) has to be "
+                "To recognize songs, a small free program (Chromaprint fpcalc, about 4 MB) has to be "
                 "downloaded once from the Chromaprint project's page on GitHub.\n\nDownload it now?"):
             return
         found = self.found

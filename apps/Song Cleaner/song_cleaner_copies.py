@@ -68,7 +68,7 @@ def _segment_offsets(fp_a, fp_b):
 
 
 def _chains(segments):
-    """Matching segments whose offsets agree with a neighbour's (allowing a little drift)."""
+    """Matching segments whose offsets agree with a neighbor's (allowing a little drift)."""
     good = [seg for seg in segments if seg[2] < MATCH_ERROR]
     kept = []
     for n, (at, off, err) in enumerate(good):
@@ -187,7 +187,7 @@ def default_name(song):
 def candidate_pairs(songs, name_of=default_name):
     """Pairs of songs (by position) worth lining up.
 
-    Same artist and title once tidied; same title under artists spelt nearly
+    Same artist and title once tidied; same title under artists spelled nearly
     alike or one containing the other; same artist with one title starting
     with the other (a cut-off name) or a letter or two different.
     """

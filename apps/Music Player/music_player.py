@@ -19,7 +19,7 @@ My Music
 
 Radio
   Search about 50,000 free stations by name, type of music or country, keep
-  favourites in My stations, or add one by its web address. The last hour of
+  favorites in My stations, or add one by its web address. The last hour of
   a station is kept, so live radio can be paused, rewound (Back 10 s / 30 s),
   sent forward, taken back to the start of the song playing, or a marked part
   repeated over and over; Go live catches up again.
@@ -36,7 +36,7 @@ Sleep timer
   typed in Other), or at the end of the song,
   fading out over the last minute; then it can also close the player, or put
   the computer to sleep or shut it down after a 30-second warning that can
-  be cancelled.
+  be canceled.
 
 Keys
   Play / Pause .......... Space            Stop ............... Ctrl+.
@@ -233,8 +233,8 @@ def words(scale=1.0):
 
 
 def black_words(app):
-    """Every word black, not Windows' soft grey-black, while the window is in
-    front or not. Greyed-out (disabled) buttons stay grey: that shows they
+    """Every word black, not Windows' soft gray-black, while the window is in
+    front or not. Grayed-out (disabled) buttons stay gray: that shows they
     can't be pressed just now."""
     from PySide6.QtGui import QPalette
     palette = app.palette()
@@ -526,7 +526,7 @@ class SongModel(QAbstractTableModel):
         elif role == Qt.ItemDataRole.DecorationRole and column == 1 and track is self.playing:
             return self.play_icon
         elif role == Qt.ItemDataRole.ForegroundRole and id(track) in self.broken:
-            return QColor(WARNING_RED)            # couldn't be played (red, not faint grey)
+            return QColor(WARNING_RED)            # couldn't be played (red, not faint gray)
         elif role == Qt.ItemDataRole.ToolTipRole:
             note = "\n(This file couldn't be played.)" if id(track) in self.broken else ""
             who = " – ".join(part for part in (track.artist or track.album_artist, track.album)

@@ -543,7 +543,7 @@ class AdjustWindow:
             self.say("Nothing to cancel.")
             return
         self.end_mode()
-        self.say("Cancelled. Nothing was changed.")
+        self.say("Canceled. Nothing was changed.")
 
     def apply_square(self):
         if self.mode != "square":
@@ -596,7 +596,7 @@ class AdjustWindow:
             return
         if self.mode:
             self.end_mode()
-            self.say("Cancelled. Nothing was changed.")
+            self.say("Canceled. Nothing was changed.")
             return
         if not self.steps.undo():
             self.say("There is nothing to undo.")

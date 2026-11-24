@@ -3,7 +3,7 @@
 Top row: Library, Contents, Search, Bookmark, Notes, Text, Read aloud, Full
 screen, Save a copy. Below the page: Previous page / Next page, a slider for
 the whole book and a line saying where you are. Picked words get a bar of big
-buttons (highlight colours, note, copy, look up, read aloud from here).
+buttons (highlight colors, note, copy, look up, read aloud from here).
 """
 
 from __future__ import annotations
@@ -50,8 +50,8 @@ PDF_TEXT_NOTE = ("A PDF's pages are fixed, so its words can't be made bigger or 
                  'loured here. Use Zoom in and Zoom out, under the page, to make them bigger, '
                  'and Darker and Brighter to dim the page.')
 COLOUR_BUTTONS = {"Yellow": "#fff176", "Green": "#b9f6ca", "Blue": "#b3e5fc", "Pink": "#f8bbd0"}
-# Page colours: button word -> saved name (book_reader_page.js has the colours themselves).
-BACKGROUNDS = {"White": "white", "Sepia": "sepia", "Grey": "grey", "Green": "green", "Night": "night",
+# Page colors: button word -> saved name (book_reader_page.js has the colors themselves).
+BACKGROUNDS = {"White": "white", "Sepia": "sepia", "Gray": "grey", "Green": "green", "Night": "night",
                "Amber night": "amber"}
 
 
@@ -226,7 +226,7 @@ class SidePanel(QFrame):
         self.font_box.currentTextChanged.connect(self.change_font)
         grid.addWidget(self.font_box, row, 0, 1, 3)
         row += 1
-        label("Colours")
+        label("Colors")
         buttons(list(BACKGROUNDS), self.change_colours)
         label("Light")
         light_row = QHBoxLayout()
@@ -286,7 +286,7 @@ class SidePanel(QFrame):
         self.kind = kind
         index = {"contents": 0, "search": 1, "notes": 2, "text": 3}[kind]
         self.title.setText({"contents": "Contents", "search": "Search the book", "notes": "Bookmarks and notes",
-                            "text": "Text and colours"}[kind])
+                            "text": "Text and colors"}[kind])
         self.stack.setCurrentIndex(index)
         self.show()
         if kind == "search":
@@ -377,7 +377,7 @@ class SidePanel(QFrame):
                 "You have no bookmarks or highlights yet in this book.\n\n"
                 "To bookmark a page, press Bookmark at the top.\n"
                 "To highlight words, pick them with the mouse (hold the left button down and drag "
-                "across them), then choose a colour or Add note.")
+                "across them), then choose a color or Add note.")
 
     @staticmethod
     def _where(section: int, names: list[str]) -> str:
@@ -488,7 +488,7 @@ class SelectionBar(ui.Bar):
         self.mode = "new"
         short = " ".join(text.split())
         self.caption.setText("The words you picked: “" + (short[:90] + "…" if len(short) > 90 else short)
-                             + "”.  Highlight them in a colour, or:")
+                             + "”.  Highlight them in a color, or:")
         self._fill(["Yellow", "Green", "Blue", "Pink", "Add note", "Copy", "Look up", "Read aloud from here",
                     "Cancel"], handlers)
         self.show()
@@ -498,7 +498,7 @@ class SelectionBar(ui.Bar):
         short = " ".join(highlight.text.split())
         note = f"  Your note: {highlight.note}" if highlight.note else ""
         self.caption.setText("Your highlight: “" + (short[:90] + "…" if len(short) > 90 else short)
-                             + "”." + note + "  Change its colour, or:")
+                             + "”." + note + "  Change its color, or:")
         self._fill(["Yellow", "Green", "Blue", "Pink", "Edit note", "Remove", "Cancel"], handlers)
         self.show()
 
@@ -674,7 +674,7 @@ class ReadingPage(QWidget):
                 ("Search", "\U0001F50D", "Find words in this book (Ctrl+F)", lambda: self.toggle_panel("search")),
                 ("Bookmark", "\U0001F516", "Mark this page so you can find it again (Ctrl+B)", self.toggle_bookmark),
                 ("Notes", "✎", "Your bookmarks, highlights and notes", lambda: self.toggle_panel("notes")),
-                ("Text", "A", "Text size, font, colours and pages", lambda: self.toggle_panel("text")),
+                ("Text", "A", "Text size, font, colors and pages", lambda: self.toggle_panel("text")),
                 ("Read aloud", "\U0001F50A", "Read the book out loud", self.read_aloud),
                 ("Full screen", "⛶", "Use the whole screen for the page (F11)", self.toggle_full_screen),
                 ("Save a copy", "\U0001F4BE", "Save this book as EPUB, PDF, Word or plain text", self.save_copy)):
@@ -1026,7 +1026,7 @@ class ReadingPage(QWidget):
         if self.book is None:
             return
         if kind == "text" and self.is_pdf:
-            ui.inform(self, "Text and colours", PDF_TEXT_NOTE)
+            ui.inform(self, "Text and colors", PDF_TEXT_NOTE)
             return
         if self.panel.isVisible() and self.panel.kind == kind and not force:
             self.panel.hide()

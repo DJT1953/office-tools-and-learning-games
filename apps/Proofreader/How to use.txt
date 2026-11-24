@@ -138,7 +138,7 @@ The other tick boxes
 On a computer without Microsoft Word
 ------------------------------------
 The app looks for Word when it starts. If Word is not there:
-- Word's check is skipped, and the tick boxes that need Word are greyed
+- Word's check is skipped, and the tick boxes that need Word are grayed
   out, with a note saying so. The report says so too.
 - .docx and .txt documents are still corrected, by the free checker alone.
   Expect a few more items under "LEFT FOR YOU TO DECIDE", since Word is not

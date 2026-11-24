@@ -3,7 +3,7 @@
 Radio recorders leave marks on names: the DJ's name stuck on the end of the
 title ("Auto Dj Bud"), copy numbers ("_01", "(2)"), titles cut off at 30
 letters, "artist-title" with no spaces, "Surname, First", a record label and
-catalogue number where the title should be. This module proposes a clean
+catalog number where the title should be. This module proposes a clean
 "Artist - Title" for each song and says which names it could not be sure of.
 It only proposes; nothing here renames a file.
 """

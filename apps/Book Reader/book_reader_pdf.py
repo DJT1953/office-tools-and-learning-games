@@ -3,7 +3,7 @@
 PdfView behaves like ReaderView where the reading page needs it to: a "section"
 is one PDF page, places are (page, 0), and it can give its page text for
 search, bookmarks and reading aloud. PDF pages are fixed, so there are no
-highlights or colour changes; there is zoom instead.
+highlights or color changes; there is zoom instead.
 """
 
 from __future__ import annotations

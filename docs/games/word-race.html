@@ -1657,7 +1657,7 @@ function distractors(target, pool, n){
 const PRAISE = ['Nailed it.', 'Good eye.', 'Smooth.', 'Clean shift.', 'Perfect.', "That's the one.", 'Excellent.'];
 const PRAISE_ACE = ['Nailed it, Ace.', 'Good eye, Ace.', 'Smooth driving, Ace.', 'Perfect, Ace.', "That's the one, Ace.", 'Excellent, Ace.'];
 const CRUISE_ON_MS = 2400;   // extra open road after the praise: each stretch between words is about twice as long
-// Ace's name always FOLLOWS praise or an acknowledgement, and always COMES FIRST in a command.
+// Ace's name always FOLLOWS praise or an acknowledgment, and always COMES FIRST in a command.
 const aceCmd = line => line.replace(/(Find|Click) (\w+)\.$/, (m, verb, word) => `Ace, ${verb.toLowerCase()} ${word}.`);
 const ASSIST = ['Got it.', 'That works.', 'All right.'];
 const ASSIST_ACE = ['Got it, Ace.', 'That works, Ace.', 'All right, Ace.'];

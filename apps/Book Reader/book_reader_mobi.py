@@ -7,7 +7,7 @@ compressed text records, then pictures and other resources. Older books
 "combined" files) hold the text as skeletons and fragments that must be put
 back together, described by index records.
 
-Locked books (Amazon's copy protection) are recognised and reported, never
+Locked books (Amazon's copy protection) are recognized and reported, never
 opened. Nothing here removes copy protection.
 """
 

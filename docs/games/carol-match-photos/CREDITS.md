@@ -1,8 +1,8 @@
 # Carol Match photo credits
 
-Every picture in Carol Match is a photograph from Wikimedia Commons, resized for the game with a white border added; the Santa and violin photos are also cropped. Each photo stays under its own licence below, not under this repository's LICENSE. Follow the Original link for the photographer's page and the full licence terms.
+Every picture in Carol Match is a photograph from Wikimedia Commons, resized for the game with a white border added; the Santa and violin photos are also cropped. Each photo stays under its own license below, not under this repository's LICENSE. Follow the Original link for the photographer's page and the full license terms.
 
-| Word | Photographer | Licence | Source |
+| Word | Photographer | License | Source |
 |---|---|---|---|
 | Christmas tree | William Warby | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) | [Original](https://commons.wikimedia.org/wiki/File:A1_Christmas_Tree_photo.jpg) |
 | Candle | Candle.jpg: Bangin derivative work: Setreset | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) | [Original](https://commons.wikimedia.org/wiki/File:Candle_black.jpg) |

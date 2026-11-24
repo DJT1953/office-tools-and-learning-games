@@ -13,7 +13,7 @@ THE FIRST TIME
      - the Python add-ons PySide6, numpy, mutagen and imageio-ffmpeg
        (about 300 MB to download, 850 MB installed; imageio-ffmpeg brings
        FFmpeg, which reads and cuts MP3s)
-     - if you say yes, the small song recogniser Chromaprint fpcalc
+     - if you say yes, the small song recognizer Chromaprint fpcalc
        (https://acoustid.org/chromaprint), only needed to look names up online
      - a "Song Cleaner" shortcut on the Desktop
    Running it again is safe.
@@ -85,7 +85,7 @@ LOOKING NAMES UP ONLINE (optional)
 
    For doubtful names the program can ask AcoustID, a free public music
    database. It needs a free key. Press Settings for the steps. The first
-   time, it also asks to download a small free program that recognises
+   time, it also asks to download a small free program that recognizes
    songs. Only the song's fingerprint and length are sent, never the file.
 
 

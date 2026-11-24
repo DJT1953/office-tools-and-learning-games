@@ -2,7 +2,7 @@
 
 Settings, the library list (a details cache so later starts are quick), cover
 thumbnails and one small file per book (place, bookmarks, highlights, notes,
-favourite, finished, collections, reading speed) live in a state folder,
+favorite, finished, collections, reading speed) live in a state folder,
 normally %APPDATA%\\Book Reader. Every file is written to a temporary file and
 then swapped in, so a crash or power cut never leaves half a file. A file that
 can't be read is kept as name.bad and defaults are used instead.

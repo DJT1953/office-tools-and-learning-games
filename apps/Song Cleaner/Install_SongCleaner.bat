@@ -12,7 +12,7 @@ echo  This installs what the Song Cleaner needs:
 echo    - Python (only if this computer does not have it)
 echo    - the Python add-ons PySide6, numpy, mutagen and imageio-ffmpeg
 echo      (imageio-ffmpeg brings FFmpeg, which reads and cuts the MP3s)
-echo    - if you want it, the small song recogniser used to look names up online
+echo    - if you want it, the small song recognizer used to look names up online
 echo    - a shortcut on the Desktop
 echo.
 

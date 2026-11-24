@@ -223,7 +223,7 @@ namespace FindReplaceApp
 
         // Shows the files in each folder while choosing. Returns the folder chosen
         // with "Use this folder", or the folder of a file chosen with Open, or null
-        // if the window was cancelled.
+        // if the window was canceled.
         public static string Pick(IntPtr owner, string title, string startFolder)
         {
             return Pick(owner, title, startFolder, false);
@@ -774,7 +774,7 @@ function New-Choice([string[]]$Items, [int]$Width, [switch]$Editable) {
 }
 
 # Chooses what a format looks like. Returns the format (with nothing in it for
-# "No formatting"), or $null when the window was cancelled.
+# "No formatting"), or $null when the window was canceled.
 function Show-FormatWindow([string]$Kind, $Current) {
     $isFind = ($Kind -eq 'Find')
     $blank = '(no change)'
@@ -1134,7 +1134,7 @@ function Show-MainForm([hashtable]$Last, [string[]]$StartPaths) {
     $ui.BetweenIncludeTo.Checked = [bool]$Last.BetweenIncludeTo
     $ui.BetweenCase.Checked = [bool]$Last.BetweenMatchCase
 
-    # Greys out what isn't ticked, and keeps the count under the list up to date
+    # Grays out what isn't ticked, and keeps the count under the list up to date
     $sync = {
         $ui.WordsGrid.Enabled = $ui.WordsOn.Checked
         $ui.BetweenGrid.Enabled = $ui.BetweenOn.Checked
@@ -1326,7 +1326,7 @@ function Show-PreviewForm($Items, [hashtable]$S) {
     }
     Add-Row $page $list
 
-    Add-Row $page (New-Label 'The selected document:   red and crossed out is taken out,   green is put in,   blue gets the format in [ ],   grey stays as it is.' -Grey -Width 1040)
+    Add-Row $page (New-Label 'The selected document:   red and crossed out is taken out,   green is put in,   blue gets the format in [ ],   gray stays as it is.' -Gray -Width 1040)
     $box = New-Object System.Windows.Forms.RichTextBox
     $box.ReadOnly = $true
     $box.BackColor = [System.Drawing.Color]::White

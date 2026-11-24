@@ -174,7 +174,7 @@ START IT
      red and crossed out  = taken out
      green                = put in
      blue                 = gets the format shown in [ ]
-     grey                 = stays as it is
+     gray                 = stays as it is
    Marks show by name, such as [line break] and [paragraph].
    A long beginning or ending shows its first and last lines, with the
    number of characters in between. If the text was not found in a

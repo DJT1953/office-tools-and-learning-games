@@ -183,7 +183,7 @@ def make_thumbnail(data: bytes) -> bytes | None:
 
 
 def drawn_cover(title: str, author: str, size: QSize = COVER) -> QPixmap:
-    """A plain cover for a book without one: its title and author on a colour."""
+    """A plain cover for a book without one: its title and author on a color."""
     pixmap = QPixmap(size)
     colour = QColor(COVER_COLOURS[sum(map(ord, title)) % len(COVER_COLOURS)])
     pixmap.fill(colour)

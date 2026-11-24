@@ -158,7 +158,7 @@ class CopyJob(QObject):
 
 def ask_and_save(parent: QWidget, book, locked: bool = False, on_done=None) -> CopyJob | None:
     """The Save a copy button: which kind, where, then make it. on_done(ok, message) is called
-    when the copy is finished or cancelled (it may be at once, for a PDF's text)."""
+    when the copy is finished or canceled (it may be at once, for a PDF's text)."""
     kinds = convert.copy_kinds(book.format, locked)
     if not kinds:
         ui.inform(parent, "Save a copy", "This book is locked with copy protection, so no copy can be made of it.")

@@ -61,7 +61,7 @@ def decode_mono(path):
 
 
 def _band_sums(power, freqs, edges):
-    """Energy in each band between neighbouring edges; one row per frame."""
+    """Energy in each band between neighboring edges; one row per frame."""
     cum = np.concatenate([np.zeros((power.shape[0], 1), dtype=np.float64),
                           np.cumsum(power, axis=1, dtype=np.float64)], axis=1)
     idx = np.searchsorted(freqs, edges)
@@ -72,7 +72,7 @@ def analyse(samples):
     """(fingerprint, level, bands) for a song.
 
     fingerprint: one 32-bit word per frame. Each bit says whether the energy
-    step between two neighbouring bands grew or shrank since the frame before,
+    step between two neighboring bands grew or shrank since the frame before,
     which survives re-encoding, a different volume and a different station.
     level: loudness of each frame in dB (0 = full scale).
     bands: 16 band levels per frame in half-dB steps (uint8).
@@ -183,7 +183,7 @@ def read_song(path):
 
 
 class Cache:
-    """Remembers what was learnt about each song, until the file changes."""
+    """Remembers what was learned about each song, until the file changes."""
 
     def __init__(self, folder=None):
         self.folder = folder or os.path.join(app_folder(), "songs")

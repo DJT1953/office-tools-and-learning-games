@@ -7,7 +7,7 @@ Run by Install_SongCleaner.bat. Installs everything the Song Cleaner needs:
      mutagen (song tags) and imageio-ffmpeg (which brings FFmpeg, for reading
      and cutting MP3s)
   2. a check that FFmpeg works
-  3. if wanted, the small free program that recognises songs (Chromaprint
+  3. if wanted, the small free program that recognizes songs (Chromaprint
      fpcalc, about 4 MB), used only by "Look up doubtful names online"
   4. a "Song Cleaner" shortcut on the Desktop
 
@@ -161,7 +161,7 @@ def main(folder=None, out=print, ask=ask_yes, run=subprocess.run):
     elif not problems:
         problems.append("FFmpeg (from imageio-ffmpeg) could not be started.")
 
-    out("\n[3 of 4] The song recogniser, for looking up names online (optional, about 4 MB)")
+    out("\n[3 of 4] The song recognizer, for looking up names online (optional, about 4 MB)")
     sys.path.insert(0, folder)
     try:
         import song_cleaner_online as online

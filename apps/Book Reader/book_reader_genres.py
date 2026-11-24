@@ -1,6 +1,6 @@
 """Plain genres (Mystery, Westerns, History ...) from a book's subject tags.
 
-Books carry library-catalogue headings ("Frontier and pioneer life -- West (U.S.) -- Fiction")
+Books carry library-catalog headings ("Frontier and pioneer life -- West (U.S.) -- Fiction")
 or shop categories ("FICTION / Mystery & Detective / General"). There are hundreds of different
 ones, so each is put into a short list of plain genres by the words it contains.
 """

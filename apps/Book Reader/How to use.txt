@@ -100,15 +100,15 @@ Buttons at the top:
   mark off.
 - Notes: your bookmarks and highlights, with your notes. Click one to go
   there. Save notes to a file writes them into a text file.
-- Text: text size (Smaller / Bigger), font, colours, Light, One page, Two
+- Text: text size (Smaller / Bigger), font, colors, Light, One page, Two
   pages side by side, or Scroll, Space between lines (Close, Normal, Wide),
   Margins, and Straight right-hand edge.
-  Colours: White, Sepia (warm paper), Grey, Green, Night (light words on a
+  Colors: White, Sepia (warm paper), Gray, Green, Night (light words on a
   dark page) and Amber night (warm orange words on a dark page, with no
   bright white or blue light, for reading at night).
   Light: Darker dims the page a little at a time, down to 30%, for reading in
   a dark room; Brighter turns it back up to 100%. The buttons and the rest of
-  the window stay as they are. Your colours and light are kept for next time.
+  the window stay as they are. Your colors and light are kept for next time.
 - Read aloud: reads the book out loud with a Windows voice and turns the pages
   by itself. While it reads, a bar has Pause (then Go on), Stop, Slower,
   Faster and Voice. Press Read aloud (now called Stop reading) again to stop.
@@ -118,11 +118,11 @@ Buttons at the top:
 
 Picking words: hold the left mouse button down and drag across some words. A
 bar appears with Yellow, Green, Blue and Pink (to highlight them in that
-colour), Add note, Copy, Look up, Read aloud from here, and Cancel.
+color), Add note, Copy, Look up, Read aloud from here, and Cancel.
 - Look up asks a free dictionary on the internet what the word means. Only the
   first word you picked is sent. Look it up on the web opens Wiktionary in your
   web browser.
-- Click a highlight to change its colour, or press Edit note or Remove.
+- Click a highlight to change its color, or press Edit note or Remove.
 
 Links in a book: footnote and chapter links go there, and a Back button
 appears under the page to take you back. A link to a web page asks before

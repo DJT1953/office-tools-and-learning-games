@@ -46,7 +46,7 @@ def words(scale: float = 1.0) -> float:
 
 
 def black_words(app: QApplication) -> None:
-    """Every word black rather than Windows' soft grey-black. Disabled buttons stay grey."""
+    """Every word black rather than Windows' soft gray-black. Disabled buttons stay gray."""
     palette = app.palette()
     roles = (QPalette.ColorRole.WindowText, QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText,
              QPalette.ColorRole.PlaceholderText, QPalette.ColorRole.ToolTipText, QPalette.ColorRole.BrightText)
