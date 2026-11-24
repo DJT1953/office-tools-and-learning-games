@@ -62,7 +62,8 @@ FOR GOOD RESULTS
 
 WHAT IT NEEDS
   1. Windows 10 or 11.
-  2. Python 3.10 or newer (tested with 3.14), from
+  2. Python 3.10 or newer (tested with 3.14). If this PC doesn't have it,
+     Run_PhotoStitcher.bat offers to install it for you; or get it yourself from
      https://www.python.org/downloads/windows/
   3. These free add-ons. On first start Photo Stitcher offers to download and
      install them (about 72 MB, once; needs an internet connection):
@@ -72,3 +73,8 @@ WHAT IT NEEDS
        pillow-heif .. https://pypi.org/project/pillow-heif/ (iPhone HEIC photos)
   The Setup version (Photo Stitcher Setup.exe) has everything inside it and
   needs nothing else.
+
+TO UPDATE IT
+  Unzip the new zip into the same place as this one and choose "Replace the
+  files in the destination". Your settings are kept: they are stored
+  elsewhere, not in this folder.

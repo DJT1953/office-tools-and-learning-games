@@ -97,3 +97,8 @@ GOOD TO KNOW
    A DJ talking over the music cannot be removed, only cut off together
    with that part of the song.
    The program expects one song per file, as MP3.
+
+TO UPDATE IT
+  Unzip the new zip into the same place as this one and choose "Replace the
+  files in the destination". Your settings are kept: they are stored
+  elsewhere, not in this folder.

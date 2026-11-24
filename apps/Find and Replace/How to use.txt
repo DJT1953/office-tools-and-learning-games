@@ -224,6 +224,12 @@ GOOD TO KNOW
 IF THE DESKTOP SHORTCUT GOES MISSING (or you move this folder)
   Double-click "Create desktop shortcut" in this folder.
 
+TO UPDATE IT
+  If you installed it with Setup: run the new version's Setup. There is no
+  need to uninstall this one first; Setup replaces it.
+  If you unzipped it: unzip the new zip into the same place and choose
+  "Replace the files in the destination".
+
 TRY IT SAFELY
   The "Try it - sample documents" folder has three newsletters (.docx, .doc
   and .rtf) and some meeting notes (.txt). Each newsletter starts with a

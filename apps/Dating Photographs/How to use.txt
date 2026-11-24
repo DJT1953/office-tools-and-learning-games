@@ -82,7 +82,8 @@ FOR GOOD RESULTS
 
 WHAT IT NEEDS
   1. Windows 10 or 11.
-  2. Python 3.10 or newer (tested with 3.14), from
+  2. Python 3.10 or newer (tested with 3.14). If this PC doesn't have it,
+     Run_DatingPhotos.bat offers to install it for you; or get it yourself from
      https://www.python.org/downloads/windows/
   3. These free add-ons. On first start Dating Photographs offers to download
      and install them, with the handwriting reader's data (about 120 MB, once;
@@ -95,3 +96,8 @@ WHAT IT NEEDS
        https://github.com/UB-Mannheim/tesseract/wiki
   The Setup version (Dating Photographs Setup.exe) has everything inside it
   and needs nothing else.
+
+TO UPDATE IT
+  Unzip the new zip into the same place as this one and choose "Replace the
+  files in the destination". Your settings are kept: they are stored
+  elsewhere, not in this folder.

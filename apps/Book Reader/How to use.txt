@@ -153,8 +153,9 @@ a free, unlocked copy. The Book Reader never removes copy protection.
 WHAT IT NEEDS
   1. Windows 10 or 11.
 
-  2. Python 3.10 or newer (tested with Python 3.14). It is free:
-       https://www.python.org/downloads/windows/
+  2. Python 3.10 or newer (tested with Python 3.14). It is free. If this
+     PC doesn't have it, Run_BookReader.bat offers to install it for you;
+     or get it yourself from https://www.python.org/downloads/windows/
      The Book Reader starts with Python's "pyw" command, which the python.org
      installer sets up.
 
@@ -188,3 +189,8 @@ GOOD TO KNOW
     %APPDATA%\Book Reader.
   - Your book files are never changed, moved or deleted. Remove from library
     only takes a book off the list.
+
+TO UPDATE IT
+  Unzip the new zip into the same place as this one and choose "Replace the
+  files in the destination". Your settings are kept: they are stored
+  elsewhere, not in this folder.

@@ -29,8 +29,9 @@ START IT
 WHAT IT NEEDS
   1. Windows 10 or 11.
 
-  2. Python 3.10 or newer (tested with Python 3.14). It is free:
-       https://www.python.org/downloads/windows/
+  2. Python 3.10 or newer (tested with Python 3.14). It is free. If this
+     PC doesn't have it, Run_MusicPlayer.bat offers to install it for you;
+     or get it yourself from https://www.python.org/downloads/windows/
      The player starts with Python's "pyw" command, which the python.org
      installer sets up.
 
@@ -76,3 +77,8 @@ GOOD TO KNOW
   - On a smaller screen the player keeps its buttons on screen: Volume and Mute
     move up beside the song's name, and under the list "Add to Up next" shows
     as "Add" and "Remove from list" as "Remove". They do the same thing.
+
+TO UPDATE IT
+  Unzip the new zip into the same place as this one and choose "Replace the
+  files in the destination". Your settings are kept: they are stored
+  elsewhere, not in this folder.

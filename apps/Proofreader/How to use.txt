@@ -183,3 +183,8 @@ proofreader_job.py       copies, batches and the report
 The free checker is stored in  %LOCALAPPDATA%\Proofreader\tools
 Settings are stored in         %APPDATA%\Proofreader\settings.json
 Your place in a batch is in    %APPDATA%\Proofreader\unfinished batch.jsonl
+
+TO UPDATE IT
+  Unzip the new zip into the same place as this one and choose "Replace the
+  files in the destination". Your settings are kept: they are stored
+  elsewhere, not in this folder.
