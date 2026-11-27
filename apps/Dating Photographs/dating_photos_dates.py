@@ -15,7 +15,7 @@ from __future__ import annotations
 import datetime as dt
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 DAY, HOLIDAY, MONTH, SEASON, YEAR, DECADE = "day", "holiday", "month", "season", "year", "decade"
 EXACTNESS = {DAY: 5, HOLIDAY: 4, MONTH: 3, SEASON: 2, YEAR: 1, DECADE: 0}
@@ -45,6 +45,18 @@ AS_LETTER = str.maketrans({"0": "o", "1": "l", "|": "l", "!": "l", "5": "s", "$"
 WEIGHT = {DAY: 1.0, HOLIDAY: 0.95, MONTH: 0.85, SEASON: 0.7, YEAR: 0.5, DECADE: 0.3}
 # Where the words were found: writing on the photo beats a file name.
 PLACE_WEIGHT = {"back": 1.0, "front": 1.0, "typed": 1.0, "file name": 0.9, "folder name": 0.6}
+# A birth or death date written under a photo ("b: 11-02-1886", "(04/22/1833 to 09/14/1899)") is
+# rarely the day it was taken: trusted this much less, so "~1895" on the line above it wins.
+LIFE_WEIGHT = 0.4
+LIFE_MARK = re.compile(r"(?<![a-z])(?:b|d|born|died|dob|dod|birth|death|deceased|buried|bur)\s*[.:]?\s*\(?\s*$",
+                       re.I)
+# "born" or "married" a few words before: "married to Frank B. Hale May 18, 1948" (not past
+# a comma, a number or the end of a sentence: "where Dad was born, June 1952" and "born in Ohio
+# 1902 Christmas 1952" end with the photo's)
+LIFE_WORD = re.compile(r"(?<![a-z])(?:born|died|married|marr|deceased|buried)(?:(?![,;!?\d]|[a-z]{2}\.).){0,45}$",
+                       re.I)
+RANGE_GAP = re.compile(r"\s*\)?\s*(?:to|-|until|till|thru|through)\s*\(?\s*", re.I)
+ORDINAL = r"(?:st|nd|rd|th)"
 
 
 @dataclass(frozen=True)
@@ -56,11 +68,14 @@ class Clue:
     score: float              # higher is more believable, at most 1
     where: str = ""           # "front", "back", "file name", "folder name" or "typed"
     box: tuple | None = None  # (left, top, right, bottom) in the picture, if read from one
+    life: bool = False        # looks like a birth, death or wedding date ("b: 1886", "(1833 to 1899)")
 
     def describe(self):
         """Plain words for the Check list, e.g. '"Oct-98" (no day written, so the 1st)'."""
         note = {MONTH: " (no day written, so the 1st)", SEASON: " (a season)",
                 YEAR: " (only a year, so January 1st)", DECADE: " (only a decade)"}.get(self.kind, "")
+        if self.life:
+            note += " (looks like a birth, death or wedding date)"
         return f"“{self.words.strip()}”{note}"
 
 
@@ -99,7 +114,7 @@ HOLIDAYS = [   # pattern, the date it means in a given year
     (r"easter(?:\s*sunday)?", easter),
     (r"thanksgiving(?:\s*day)?", lambda y: nth_weekday(y, 11, 3, 4)),
     (r"hallowe'?en", lambda y: dt.date(y, 10, 31)),
-    (r"(?:4|fourth)\s*of\s*" + JULY + r"|independence\s*day", lambda y: dt.date(y, 7, 4)),
+    (r"(?:4(?:th)?|fourth)\s*of\s*" + JULY + r"|independence\s*day", lambda y: dt.date(y, 7, 4)),
     (r"valentine'?s?(?:\s*day)?", lambda y: dt.date(y, 2, 14)),
     (r"mother'?s?\s*day", lambda y: nth_weekday(y, 5, 6, 2)),
     (r"father'?s?\s*day", lambda y: nth_weekday(y, 6, 6, 3)),
@@ -149,8 +164,8 @@ def month_of(word):
 def clean_token(token):
     """One word or number with a reader's look-alikes put right."""
     ending = re.fullmatch(r"(\d{1,2})(st|nd|rd|th)", token, re.I)
-    if ending:
-        return ending.group(1)
+    if ending:            # kept: a day can be 12th, a year can't be ("39th Birthday" isn't '39)
+        return ending.group(1) + ending.group(2).lower()
     digits = sum(ch.isdigit() for ch in token)
     letters = sum(ch.isalpha() for ch in token)
     if digits and digits >= letters:
@@ -167,9 +182,8 @@ def clean_token(token):
 
 
 def clean(text):
-    """Text with look-alike characters put right, each month name replaced by
-    a <Mnn> mark (<Mnn~> when guessed from a misspelling) and day endings
-    (12th) dropped, ready for the patterns."""
+    """Text with look-alike characters put right and each month name replaced by
+    a <Mnn> mark (<Mnn~> when guessed from a misspelling), ready for the patterns."""
     text = unicodedata.normalize("NFKC", text)
     text = re.sub(r"[‘’‛′`´]", "'", text)
     text = re.sub(r"[‐-―−]", "-", text)
@@ -191,12 +205,13 @@ def clean(text):
 # ------------------------------------------------------------------ the patterns
 
 Y4 = r"(18[3-9]\d|19\d\d|20\d\d)"
-YEAR_ANY = r"('?\d{2}|18[3-9]\d|19\d\d|20\d\d)(?!\d)"
-SURE_YEAR = r"('\d{2}|18[3-9]\d|19\d\d|20\d\d|3[2-9]|[4-9]\d)(?!\d)"   # can't be a day of the month
-DAYLIKE_YEAR = r"([0-2]\d|3[01])(?!\d)"                                # 12 could be a day or 2012
+NOT_ORDINAL = r"(?!\d|st|nd|rd|th)"   # a year is never "39th"
+YEAR_ANY = r"('?\d{2}|18[3-9]\d|19\d\d|20\d\d)" + NOT_ORDINAL
+SURE_YEAR = r"('\d{2}|18[3-9]\d|19\d\d|20\d\d|3[2-9]|[4-9]\d)" + NOT_ORDINAL   # can't be a day of the month
+DAYLIKE_YEAR = r"([0-2]\d|3[01])" + NOT_ORDINAL                             # 12 could be a day or 2012
 NOTHING_MORE = r"(?![\s,.\-/']*\d)"
 M = r"<M(\d\d)(~?)>"
-D = r"(\d{1,2})(?!\d)"
+D = r"(\d{1,2})" + ORDINAL + r"?(?!\d)"   # a day: 12 or 12th
 B = r"(?<![\dM])"     # not in the middle of a number or a month mark
 E = r"(?!\d)"
 
@@ -267,6 +282,8 @@ def date_patterns(month_first):
         # 19981012, and 1998 10 12 (a file name's underscores become spaces)
         (B + Y4 + r"(\d\d)(\d\d)" + E, DAY, 0.9, lambda g: (g[0], g[1], g[2])),
         (B + Y4 + r"\s+" + D + r"\s+" + D, DAY, 0.85, lambda g: (g[0], g[1], g[2])),
+        # 1881 October 14, 1998 Oct. 12th
+        (B + Y4 + r"[\s,.\-/]*" + M + r"[\s,.\-/]*" + D, DAY, 0.95, lambda g: (g[0], g[1], g[3])),
         # June 12, 1975 / Dec. 25,1990 / June 12th 75
         (M + r"[\s,.\-/]*" + D + r"[\s,.\-/']*(?:of\s*)?" + YEAR_ANY, DAY, 1.0,
          lambda g: (g[3], g[0], g[2])),
@@ -290,8 +307,9 @@ def date_patterns(month_first):
         # 98-Oct, 1998 October; again "12 Oct" may be a day
         (B + SURE_YEAR + r"[\s,.\-/]*" + M, MONTH, 1.0, lambda g: (g[0], g[1], 1)),
         (B + DAYLIKE_YEAR + r"[\s,.\-/]*" + M, MONTH, 0.5, lambda g: (g[0], g[1], 1)),
-        # 1998-10
+        # 1998-10, and "1959 07" or "1979 05 - 2 yrs old" (a year, then the month's number)
         (B + Y4 + r"[-/.]" + D, MONTH, 0.8, lambda g: (g[0], g[1], 1)),
+        (B + Y4 + r"\s+(0[1-9]|1[0-2])(?![\d']|\s*\d)", MONTH, 0.85, lambda g: (g[0], g[1], 1)),
         # 10/98, 10-1998; "3/15" or "12-25" could be a day with no year, so trusted less
         (B + D + r"[-/.]" + r"('\d{2}|3[2-9]|[4-9]\d|18[3-9]\d|19\d\d|20\d\d)" + E, MONTH, 0.8,
          lambda g: (g[1], g[0], 1)),
@@ -317,7 +335,7 @@ def find_dates(text, where="", confidence=1.0, box=None, today=None, month_first
             return       # a future date: its words mean nothing else either
         words = text if len(text) <= 60 else cleaned[start:end]
         score = WEIGHT[kind] * trust * trust_reader * (0.85 if fuzzy else 1.0)
-        found.append(Clue(date, kind, words, round(score, 4), where, box))
+        found.append(((start, end), Clue(date, kind, words, round(score, 4), where, box)))
 
     def run(kinds):
         for pattern, kind, trust, parts in date_patterns(month_first):
@@ -341,6 +359,8 @@ def find_dates(text, where="", confidence=1.0, box=None, today=None, month_first
     for m in re.finditer(r"(?<![a-z])(spring|summer|fall|autumn|winter)[\s,.\-/']*(?:of\s*)?" + YEAR_ANY,
                          lowered):
         add(m, dated(m.group(2), SEASONS[m.group(1)], 1, today), SEASON, 1.0)
+    for m in re.finditer(B + Y4 + r"[\s,.\-/']*(spring|summer|fall|autumn|winter)(?![a-z])", lowered):
+        add(m, make_date(m.group(1), SEASONS[m.group(2)], 1, today), SEASON, 1.0)      # 1956 summer
 
     # 1950s, the '50s, 50's (on a print, "the 20s" is the 1920s; "the 00s" the 2000s)
     for m in re.finditer(B + r"(18[4-9]|19\d|20[0-2])0'?s(?![a-z])", lowered):
@@ -355,7 +375,32 @@ def find_dates(text, where="", confidence=1.0, box=None, today=None, month_first
     for m in re.finditer(r"(?<![\w'])'(\d\d)" + E, cleaned):
         add(m, dated(m.group(1), 1, 1, today), YEAR, 0.9)
 
-    return merge(found)
+    return merge(mark_life_dates(cleaned, found, taken))
+
+
+def mark_life_dates(cleaned, found, taken):
+    """The clues, with birth and death dates marked and trusted less: a date after
+    b:, d:, born or died, at either end of "1833 to 1899", or in a bracket the
+    line cut off ("(04/22/1833 to" ... "09/14/1899)": the end of "(... to ...)").
+    A date alone in brackets, "Grandma's house (1952)", is the photo's. taken holds
+    every date's place, those too early to be a photo's too (1833 in "1833 to 1899")."""
+    spans = sorted(taken)
+    ranged = set()
+    for (_, end), (start, _) in zip(spans, spans[1:]):
+        if RANGE_GAP.fullmatch(cleaned[end:start]):
+            ranged.update({end, start})
+    out = []
+    for (start, end), clue in found:
+        before, after = cleaned[:start], cleaned[end:]
+        opened = before.count("(") > before.count(")")
+        first_after = re.search(r"[()]", after)
+        closes = bool(first_after and first_after.group() == ")")
+        cut_bracket = (opened and not closes) or (closes and not opened)
+        if end in ranged or start in ranged or cut_bracket or LIFE_MARK.search(before[-20:]) \
+                or LIFE_WORD.search(before[-60:]):
+            clue = replace(clue, life=True, score=round(clue.score * LIFE_WEIGHT, 4))
+        out.append(clue)
+    return out
 
 
 def holiday(when, year_text, today):
@@ -374,9 +419,21 @@ def holiday(when, year_text, today):
 
 
 def merge(clues):
-    """One clue per date, the best-scored kept, best first (then the more exact)."""
+    """One clue per date, the best-scored kept, best first (then the more exact). A date
+    seen anywhere as a birth or death date stays one, even where read without its b: or d:;
+    so does just its year or month read on its own ("21,1985" of "Born July 21,1985")."""
+    life = {clue.date for clue in clues if clue.life}
+    life_years = {date.year for date in life}
+    life_months = {(date.year, date.month) for date in life}
+
+    def part_of_life_date(clue):
+        return clue.date in life or (clue.kind == YEAR and clue.date.year in life_years) \
+            or (clue.kind == MONTH and (clue.date.year, clue.date.month) in life_months)
+
     by_date = {}
     for clue in clues:
+        if not clue.life and part_of_life_date(clue):
+            clue = replace(clue, life=True, score=round(clue.score * LIFE_WEIGHT, 4))
         kept = by_date.get(clue.date)
         if kept is None or clue.score > kept.score:
             by_date[clue.date] = clue
@@ -407,6 +464,7 @@ def typed_date(text, today=None, month_first=True):
 
 
 COUNTER = re.compile(r"(?i)\b(?:img|dsc|dscn|dscf|scan|pict?|photo|image|p|file)\s*0*(\d{4})\b")
+COUNTER_AND_NUMBER = re.compile(COUNTER.pattern + r"\s+(\d\d)\b")      # IMG_1998_05: picture 1998, copy 05
 
 
 def from_name(name, where="file name", today=None, month_first=True):
@@ -414,6 +472,8 @@ def from_name(name, where="file name", today=None, month_first=True):
     words = re.sub(r"_+", " ", name)
     words = re.sub(r"(?<=\d)(?=[A-Za-z]{3})|(?<=[A-Za-z]{3})(?=\d)", " ", words)
     counters = {match.group(1) for match in COUNTER.finditer(words)}
+    numbered = {(match.group(1), match.group(2)) for match in COUNTER_AND_NUMBER.finditer(words)}
     clues = find_dates(words, where=where, today=today, month_first=month_first)
-    # in names, IMG_1998 is a picture's number, not a year
-    return [c for c in clues if not (c.kind == YEAR and str(c.date.year) in counters)]
+    # in names, IMG_1998 is a picture's number, not a year, and IMG_1998_05 isn't May 1998
+    return [c for c in clues if not (c.kind == YEAR and str(c.date.year) in counters)
+            and not (c.kind == MONTH and (str(c.date.year), f"{c.date.month:02}") in numbered)]

@@ -3,9 +3,11 @@ the white border or the back) and renames each photo by its date, like
 1998-10-01.jpg, in a "Dated Photographs" folder.
 
 Step 1 pick the folder, Step 2 find the dates, Step 3 check them (change any,
-untick any to leave alone), Step 4 rename and move. "Oct-98" and "98-Oct" both
-become 1998-10-01: a date with no day gets the 1st. Photos with no date stay
-where they are. Undo puts the last batch back, names and dates and all.
+untick any to leave alone), Step 4 rename and move them, or rename copies of
+them and leave the photos untouched. "Oct-98" and "98-Oct" both become
+1998-10-01: a date with no day gets the 1st. Photos with no date stay where
+they are. Undo puts the last batch back, names and dates and all (or takes the
+copies away).
 
 Start it by double-clicking Run_DatingPhotos.bat (or its RUN shortcut).
 Requirements (offered on first start): Pillow, rapidocr and onnxruntime (the
@@ -34,7 +36,7 @@ import tkinter as tk
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
 TITLE = "Dating Photographs"
-VERSION = "1.0"
+VERSION = "1.1.0"      # the Setup's AppVersion must match (test_the_version_matches_the_setup)
 # The "Check for updates" button opens this page, which has the newest version of every program.
 UPDATES_PAGE = "https://djt1953.github.io/office-tools-and-learning-games/"
 NEEDS = {   # module: (pip name, what it's for, size in MB)
@@ -46,7 +48,8 @@ NEEDS = {   # module: (pip name, what it's for, size in MB)
 READER_DATA = ("ch_PP-OCRv5_det_mobile.onnx", "en_PP-OCRv5_rec_mobile.onnx", "PP-OCRv6_rec_small.onnx")
 SETTINGS = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), TITLE, "settings.json")
 TICKED, UNTICKED = "\u2611", "\u2610"
-LIST_ROOM = "1.2i"      # room the Step 3 list keeps even on a short screen (about 3 photos)
+LIST_ROOM = "0.9i"      # room the Step 3 list keeps even on a short screen (about 2 photos), so
+                        # its counts line still shows on a 768-pixel laptop screen
 PHOTO_ROOM = "0.75i"    # room the photo keeps on a short screen
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -233,19 +236,21 @@ class Reading(threading.Thread):
 
 
 class Moving(threading.Thread):
-    """Renames and moves the ticked photos in the background."""
+    """Renames and moves (or copies) the ticked photos in the background."""
 
-    def __init__(self, root, moves, clues, set_date_taken, printed=None):
+    def __init__(self, root, moves, clues, set_date_taken, printed=None, copy=False):
         super().__init__(daemon=True)
         self.args = root, moves, clues, set_date_taken
         self.printed = printed or {}
+        self.copy = copy
         self.result = None
         self.error = None
 
     def run(self):
         try:
             import dating_photos_files as files
-            self.result = files.apply_moves(*self.args[:3], set_date_taken=self.args[3], printed=self.printed)
+            self.result = files.apply_moves(*self.args[:3], set_date_taken=self.args[3], printed=self.printed,
+                                            copy=self.copy)
         except Exception:
             self.error = traceback.format_exc()
 
@@ -263,8 +268,9 @@ class Row:
         self.clue = None             # where that date came from (None if typed)
         self.ticked = False
         self.typed = False           # the date was typed in by hand
-        self.state = "waiting"       # waiting, read, moved
-        self.moved_to = ""
+        self.state = "waiting"       # waiting, read, done (moved or copied)
+        self.done_how = ""           # once done: "moved" or "copied"
+        self.done_to = ""            # where it (or its copy) is now, inside the folder picked
 
 
 class App:
@@ -297,6 +303,7 @@ class App:
         style = get("print_style")
         self.print_style = tk.StringVar(value=style if style in self.stamp.STYLES else self.stamp.DEFAULT_STYLE)
         self.year_folders = tk.BooleanVar(value=get("year_folders") is True)
+        self.copy_or_move = tk.StringVar(value="copy" if get("copy_or_move") == "copy" else "move")   # move, as before 1.1
         self.date_text = tk.StringVar()
         self.other = tk.StringVar()
 
@@ -306,6 +313,7 @@ class App:
         style.configure("Big.TButton", font=("Segoe UI", 13, "bold"), padding=(12, 8), foreground="black")
         style.configure("TButton", foreground="black", font=("Segoe UI", 11))
         style.configure("TCheckbutton", font=("Segoe UI", 11))
+        style.configure("TRadiobutton", font=("Segoe UI", 11))
         style.configure("TLabelframe.Label", font=("Segoe UI", 12, "bold"))
         style.configure("Note.TLabel", font=("Segoe UI", 11))
         style.configure("Found.TLabel", font=("Segoe UI", 12))
@@ -327,7 +335,8 @@ class App:
         self.updates_button.pack(side="right", anchor="n")
         ttk.Label(page, style="Note.TLabel",
                   text="Reads the dates written on your photos (front, border or back) and renames each "
-                       "one by its date, like 1998-10-01.jpg, in a \u201cDated Photographs\u201d folder."
+                       "one (or a copy of it) by its date, like 1998-10-01.jpg, in a \u201cDated Photographs\u201d "
+                       "folder."
                   ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 8))
 
         left = ttk.Frame(page)
@@ -395,7 +404,7 @@ class App:
         self.tree.bind("<Return>", lambda e: self.focus_date_box())
         self.count_label = ttk.Label(check, style="Note.TLabel", wraplength=470, justify="left",
                                      text="Click a photo to see it on the right. Untick any you "
-                                          "don't want moved.")
+                                          "want left alone.")
         self.count_label.grid(row=1, sticky="w", pady=(6, 0))
 
         # Step 3: the photo
@@ -441,33 +450,41 @@ class App:
         self.words_label.grid(row=4, sticky="w", pady=(6, 0))
 
         # Step 4
-        go = ttk.LabelFrame(right, text="Step 4 - Date the photos and move them", padding=10)
+        go = ttk.LabelFrame(right, text="Step 4 - Date the photos, then move or copy them", padding=10)
         go.grid(row=1, sticky="ew", pady=(8, 0))
         go.columnconfigure((0, 1, 2), weight=1)
         options = ttk.Frame(go)
         options.grid(row=0, column=0, columnspan=3, sticky="w")
+        choice = ttk.Frame(options)
+        choice.grid(row=0, sticky="w", pady=(0, 2))
+        ttk.Label(choice, text="The photos:", font=("Segoe UI", 11, "bold")).pack(side="left")
+        self.move_choice = ttk.Radiobutton(choice, text="Move them", value="move", variable=self.copy_or_move,
+                                           command=self.copy_or_move_changed)
+        self.move_choice.pack(side="left", padx=(8, 0))
+        self.copy_choice = ttk.Radiobutton(choice, text="Copy them (the photos here stay as they are)",
+                                           value="copy", variable=self.copy_or_move, command=self.copy_or_move_changed)
+        self.copy_choice.pack(side="left", padx=(12, 0))
         ttk.Checkbutton(options, text="Rename each photo by its date (1998-10-01.jpg)",
-                        variable=self.rename, command=self.go_options_changed).grid(row=0, sticky="w")
+                        variable=self.rename, command=self.go_options_changed).grid(row=1, sticky="w")
         self.keep_name_box = ttk.Checkbutton(options, text="Keep the old name after the date "
                                                            "(1998-10-01 IMG_0001.jpg)",
                                              variable=self.keep_name, command=self.go_options_changed)
-        self.keep_name_box.grid(row=1, sticky="w", padx=(24, 0))
+        self.keep_name_box.grid(row=2, sticky="w", padx=(24, 0))
         printing = ttk.Frame(options)
-        printing.grid(row=2, sticky="w")
+        printing.grid(row=3, sticky="w")
         ttk.Checkbutton(printing, text="Print the date on each photo in orange, like a film camera:",
                         variable=self.print_date, command=self.go_options_changed).pack(side="left")
         self.style_box = ttk.Combobox(printing, textvariable=self.print_style, state="readonly", width=11,
                                       values=list(self.stamp.STYLES), font=("Segoe UI", 11))
         self.style_box.pack(side="left", padx=(6, 0))
         self.style_box.bind("<<ComboboxSelected>>", lambda e: self.go_options_changed())
-        ttk.Label(options, style="Note.TLabel",
-                  text=f"An untouched copy of each is kept in \u201c{self.files.ORIGINALS}\u201d.").grid(
-            row=3, sticky="w", padx=(24, 0))
+        self.print_note = ttk.Label(options, style="Note.TLabel")
+        self.print_note.grid(row=4, sticky="w", padx=(24, 0))
         ttk.Checkbutton(options, text="Set each photo's \u201cDate taken\u201d to its date (photo programs "
                                       "sort by it; scans otherwise carry the scan date)",
-                        variable=self.set_taken, command=self.go_options_changed).grid(row=4, sticky="w")
+                        variable=self.set_taken, command=self.go_options_changed).grid(row=5, sticky="w")
         ttk.Checkbutton(options, text="Put them in a folder for each year (Dated Photographs\\1998)",
-                        variable=self.year_folders, command=self.go_options_changed).grid(row=5, sticky="w")
+                        variable=self.year_folders, command=self.go_options_changed).grid(row=6, sticky="w")
         self.move_button = self.big(go, "Rename and move", self.rename_and_move, 1, 0)
         self.undo_button = self.big(go, "Undo the last move", self.undo, 1, 1)
         self.open_button = self.big(go, "Open Dated Photographs", self.open_dated, 1, 2)
@@ -516,7 +533,7 @@ class App:
                              day_first=self.day_first.get(), set_taken=self.set_taken.get(),
                              rename=self.rename.get(), keep_name=self.keep_name.get(),
                              print_date=self.print_date.get(), print_style=self.print_style.get(),
-                             year_folders=self.year_folders.get())
+                             year_folders=self.year_folders.get(), copy_or_move=self.copy_or_move.get())
         save_settings(self.settings)
 
     def go_options_changed(self):
@@ -527,24 +544,46 @@ class App:
             self.say(f"The date will be printed like {self.print_style.get()} (only what's known: a date "
                      "with no day prints without one). The photo on the right shows how it will look.")
         elif not self.rename.get():
-            self.say("The photos will keep their names. Tick Rename or Print the date, or both.")
+            self.say(f"The {'copies' if self.copying() else 'photos'} will keep their names. Tick Rename or "
+                     "Print the date, or both.")
         else:
             self.say("Options saved.")
+
+    def copy_or_move_changed(self):
+        self.remember_options()
+        self.update_buttons()
+        self.show_counts()
+        if self.copying():
+            self.say(f"The ticked photos will be copied into “{self.files.DEST}” and the copies dated. "
+                     "The photos in this folder stay exactly as they are.")
+        else:
+            self.say(f"The ticked photos will be moved into “{self.files.DEST}” and dated there.")
+
+    def copying(self):
+        return self.copy_or_move.get() == "copy"
+
+    def verb(self):
+        """'copy' or 'move', as picked in Step 4."""
+        return "copy" if self.copying() else "move"
+
+    def verb_done(self):
+        """'copied' or 'moved', as picked in Step 4."""
+        return "copied" if self.copying() else "moved"
 
     def go_words(self):
         """The Step 4 button's words, for the choices ticked."""
         rename, printing = self.rename.get(), self.print_date.get()
         if rename and printing:
-            return "Rename, print dates, move"
+            return f"Rename, print dates, {self.verb()}"
         if printing:
-            return "Print dates and move"
-        return "Rename and move"
+            return f"Print dates and {self.verb()}"
+        return f"Rename and {self.verb()}"
 
     def busy(self):
         if self.reading:
             return "The photos are being read. Wait for it to finish, or click Stop."
         if self.moving:
-            return "Wait a moment: the photos are being moved."
+            return f"Wait a moment: the photos are being {'copied' if self.moving.copy else 'moved'}."
         return ""
 
     def update_buttons(self):
@@ -553,6 +592,23 @@ class App:
         self.keep_name_box.state(["!disabled"] if self.rename.get() else ["disabled"])
         self.style_box.state(["readonly", "!disabled"] if self.print_date.get() else ["disabled"])
         self.move_button.configure(text=self.go_words())
+        self.tree.heading("use", text=self.verb().capitalize())
+        self.print_note.configure(
+            text="Only the copies get the date: the photos here stay untouched." if self.copying() else
+            f"An untouched copy of each is kept in “{self.files.ORIGINALS}”.")
+        self.update_undo_button()
+
+    def update_undo_button(self):
+        """Undo names what it would undo: the folder's last batch, moved or copied."""
+        copied = None
+        if self.folder and not self.moving:
+            try:
+                copied = self.files.last_batch_copied(self.folder)
+            except OSError:
+                copied = None
+        if copied is None:
+            copied = self.copying()
+        self.undo_button.configure(text="Undo the last copy" if copied else "Undo the last move")
 
     def check_for_updates(self):
         try:
@@ -620,6 +676,10 @@ class App:
             self.say(f"That folder can't be opened: {error}")
             return
         photos = self.files.group_photos(paths, self.every_second.get())
+        try:
+            copied = self.files.copied_already(self.folder)
+        except OSError:                  # the list can't be read: nothing is known to be copied
+            copied = {}
         self.tree.delete(*self.tree.get_children())
         self.rows.clear()
         self.order = []
@@ -629,25 +689,37 @@ class App:
             if finding is not None and self.same_sides(finding.photo, photo):
                 self.take_finding(row, finding)
             self.apply_choice(row)
+            copy = copied.get(os.path.normcase(os.path.normpath(photo.front)))
+            if copy:                     # copied before (maybe on another day): not again by mistake
+                row.state, row.ticked, row.done_how = "done", False, "copied"
+                row.done_to, row.date = copy[0], copy[1] or row.date
             item = self.tree.insert("", "end")
             self.rows[item] = row
             self.order.append(item)
             self.refresh_row(item)
         backs = sum(1 for p in photos if p.back)
+        done = sum(1 for row in self.rows.values() if row.state == "done")
         words = f"{self.folder}\n{len(photos)} photo{'s' if len(photos) != 1 else ''}"
         if backs:
             words += f", {backs} with {'its' if backs == 1 else 'their'} back scanned too"
+        if done:
+            words += f"; {done} copied already"
         self.folder_label.configure(text=words + ".")
         self.current = None
         self.draw_preview()
         self.show_counts()
+        self.update_undo_button()
         if not photos:
             self.say("There are no photos in that folder" + (" or its sub-folders." if self.subfolders.get()
                                                               else ". Tick Include photos in sub-folders if "
                                                                    "they are in folders inside it."))
+        elif self.unread():
+            self.say("Now Step 2: click Find the dates.")
+        elif done == len(photos):
+            self.say(f"Every photo here has been copied into “{self.files.DEST}” already. To do one "
+                     "again, undo that copy, or delete its copy and pick the folder again.")
         else:
-            self.say("Now Step 2: click Find the dates." if self.unread() else
-                     "These were read before. Check them in Step 3, then click Rename and move.")
+            self.say(f"These were read before. Check them in Step 3, then click {self.go_words()}.")
         if self.order:
             self.tree.selection_set(self.order[0])
             self.tree.focus(self.order[0])
@@ -744,7 +816,7 @@ class App:
                     self.progress_label.configure(text=f"Done: {read} photo{'s' if read != 1 else ''} read in "
                                                        f"{clock(time.time() - self.started).replace('about ', '')}.")
                     self.say(f"Found dates for {found} of {len(self.order)} photos. Check them in Step 3 "
-                             "(click each one), then click Rename and move.")
+                             f"(click each one), then click {self.go_words()}.")
                 return
             elif kind == "failed":
                 self.reading = None
@@ -788,8 +860,9 @@ class App:
 
     def refresh_row(self, item):
         row = self.rows[item]
-        if row.state == "moved":
-            values = ("", row.photo.name(), row.date.isoformat(), "moved to " + row.moved_to)
+        if row.state == "done":
+            values = ("", row.photo.name(), row.date.isoformat() if row.date else "",
+                      f"{row.done_how} to {row.done_to}")
             tags = ("moved",)
         elif row.state == "waiting":
             values = ("", row.photo.name(), "", "not read yet")
@@ -797,7 +870,8 @@ class App:
         else:
             if row.date:
                 how = self.how(row)
-                unsure = row.clue is not None and row.clue.score < self.tick_from()
+                # a date picked or typed in by hand has been checked already
+                unsure = not row.typed and row.clue is not None and row.clue.score < self.tick_from()
                 tags = ("unsure",) if unsure else ()
                 values = (TICKED if row.ticked else UNTICKED, row.photo.name(), row.date.isoformat(),
                           ("check this: " if unsure else "") + how)
@@ -805,7 +879,7 @@ class App:
                 problem = row.finding.problem if row.finding else ""
                 values = (UNTICKED, row.photo.name(), "none", problem or "no date found")
                 tags = ("none",)
-        if row.photo.back and row.state != "moved":
+        if row.photo.back and row.state != "done":
             values = (values[0], values[1] + "  (+ back)") + tuple(values[2:])
         self.tree.item(item, values=values, tags=tags)
 
@@ -820,15 +894,16 @@ class App:
     def show_counts(self):
         total = len(self.order)
         ticked = sum(1 for i in self.order if self.rows[i].ticked and self.rows[i].state == "read")
-        moved = sum(1 for i in self.order if self.rows[i].state == "moved")
         waiting = len(self.unread())
-        parts = [f"{ticked} of {total} ticked to move"]
+        parts = [f"{ticked} of {total} ticked to {self.verb()}"]
         if waiting:
             parts.append(f"{waiting} not read yet")
-        if moved:
-            parts.append(f"{moved} moved")
+        for how in ("moved", "copied"):
+            done = sum(1 for i in self.order if self.rows[i].state == "done" and self.rows[i].done_how == how)
+            if done:
+                parts.append(f"{done} {how}")
         self.count_label.configure(text=", ".join(parts) + ". Click a photo to see it; untick any you "
-                                                           "don't want moved.")
+                                                           "want left alone.")
 
     def list_clicked(self, event):
         if self.tree.identify_region(event.x, event.y) == "cell" and self.tree.identify_column(event.x) == "#1":
@@ -840,8 +915,8 @@ class App:
         if not item or item not in self.rows:
             return
         row = self.rows[item]
-        if row.state == "moved":
-            self.say(f"{row.photo.name()} has already been moved.")
+        if row.state == "done":
+            self.say(self.already_done(row))
             return
         if row.state == "waiting":
             self.say("That photo hasn't been read yet. Click Find the dates, or type its date on the right.")
@@ -858,7 +933,17 @@ class App:
             self.choices[row.photo.front] = None
         self.refresh_row(item)
         self.show_counts()
-        self.say(f"{row.photo.name()} will {'be moved' if row.ticked else 'stay where it is'}.")
+        if row.ticked:
+            self.say(f"{row.photo.name()} will be {self.verb_done()}.")
+        else:
+            self.say(f"{row.photo.name()} will be left alone.")
+
+    def already_done(self, row):
+        """Why a photo that was moved or copied can't be changed now."""
+        if row.done_how == "copied":
+            return (f"{row.photo.name()} has already been copied to {row.done_to}. To do it again, undo "
+                    f"that copy, or delete the copy from “{self.files.DEST}” and pick the folder again.")
+        return f"{row.photo.name()} has already been moved to {row.done_to}. To change it, undo that move first."
 
     def selected(self):
         item = self.tree.focus() or (self.tree.selection() or [None])[0]
@@ -893,8 +978,8 @@ class App:
 
     def found_words(self, row):
         name = row.photo.name()
-        if row.state == "moved":
-            return f"{name} was moved to {row.moved_to}."
+        if row.state == "done":
+            return f"{name} was {row.done_how} to {row.done_to}."
         if row.state == "waiting":
             return f"{name} hasn't been read yet."
         if not row.date:
@@ -903,7 +988,8 @@ class App:
         if row.clue is None:
             return f"{name}: {row.date.isoformat()}, typed in."
         return (f"{name}: {row.date.isoformat()}, from {row.clue.describe()} {self.how(row)}."
-                + ("  Check this one: the reading wasn't sure." if row.clue.score < self.tick_from() else ""))
+                + ("  Check this one: the reading wasn't sure."
+                   if row.clue.score < self.tick_from() and not row.typed else ""))
 
     def focus_date_box(self):
         self.date_box.focus_set()
@@ -915,8 +1001,8 @@ class App:
             self.say("First click a photo in the list.")
             return
         row = self.rows[item]
-        if row.state == "moved":
-            self.say(f"{row.photo.name()} has already been moved. Undo the last move to change it.")
+        if row.state == "done":
+            self.say(self.already_done(row))
             return
         typed = self.dates.typed_clue(self.date_text.get(), month_first=not self.day_first.get())
         if typed is None:
@@ -948,15 +1034,15 @@ class App:
             self.say("First click a photo in the list.")
             return
         row = self.rows[item]
-        if row.state == "moved":
-            self.say(f"{row.photo.name()} has already been moved.")
+        if row.state == "done":
+            self.say(self.already_done(row))
             return
         row.ticked = False
         if row.date:
             self.choices[row.photo.front] = None
         self.refresh_row(item)
         self.show_counts()
-        self.say(f"{row.photo.name()} will stay where it is.")
+        self.say(f"{row.photo.name()} will be left alone.")
         self.next_photo(item)
 
     def next_photo(self, item):
@@ -1003,9 +1089,9 @@ class App:
                                font=("Segoe UI", 13))
             return
         row = self.rows[item]
-        if row.state == "moved":
-            canvas.create_text(width // 2, height // 2, text=f"Moved to {row.moved_to}", fill="#505050",
-                               font=("Segoe UI", 13), width=width - 40)
+        if row.state == "done" and not os.path.exists(row.photo.front):     # moved away (a copied one shows)
+            canvas.create_text(width // 2, height // 2, text=f"{row.done_how.capitalize()} to {row.done_to}",
+                               fill="#505050", font=("Segoe UI", 13), width=width - 40)
             return
         sides = [("Front", row.photo.front, "front")]
         if row.photo.back:
@@ -1021,7 +1107,7 @@ class App:
                 continue
             room_h = height - 34
             scale = min(slot / small.width, room_h / small.height)
-            if where == "front" and self.print_date.get() and row.date:
+            if where == "front" and self.print_date.get() and row.date and row.state != "done":
                 small = self.stamp.draw_stamp(small, self.stamp_words(row))   # how it will look
             shown = small.resize((max(1, int(small.width * scale)), max(1, int(small.height * scale))))
             photo = ImageTk.PhotoImage(shown)
@@ -1053,30 +1139,12 @@ class App:
         chosen = [i for i in self.order if self.rows[i].ticked and self.rows[i].date
                   and self.rows[i].state == "read"]
         if not chosen:
-            self.say("No photo is ticked to move. Find the dates in Step 2, or type a date for a photo "
-                     "and click Use this date.")
+            self.say(f"No photo is ticked to {self.verb()}. Find the dates in Step 2, or type a date for a "
+                     "photo and click Use this date.")
             return
         if self.log_busy(self.folder):
             return
-        stay =sum(1 for i in self.order if self.rows[i].state != "moved") - len(chosen)
-        backs = sum(1 for i in chosen if self.rows[i].photo.back)
-        doing = {"Rename and move": "Rename and move", "Print dates and move": "Print the date on and move",
-                 "Rename, print dates, move": "Rename, print the date on and move"}[self.go_words()]
-        question = (f"{doing} {len(chosen)} photo{'s' if len(chosen) != 1 else ''}"
-                    + (f" (and {backs} back{'s' if backs != 1 else ''})" if backs else "")
-                    + f" into \u201c{self.files.DEST}\u201d?")
-        if stay:
-            question += f"\n\n{stay} photo{'s' if stay != 1 else ''} without a tick stay{'s' if stay == 1 else ''} " \
-                        "where they are."
-        if self.print_date.get():
-            question += (f"\n\nThe date is printed in orange like {self.print_style.get()}; an untouched copy "
-                         f"of each photo is kept in “{self.files.ORIGINALS}”.")
-        if self.set_taken.get():
-            question += "\n\nEach photo's Date taken will be set to its date."
-        question += "\n\nUndo the last move puts them all back if you change your mind."
-        if not messagebox.askyesno(TITLE, question, parent=self.root):
-            self.say("Nothing was moved.")
-            return
+        copying = self.copying()
         try:
             moves = self.files.new_names([(self.rows[i].photo, self.rows[i].date) for i in chosen],
                                          self.folder, self.keep_name.get(), self.year_folders.get(),
@@ -1084,14 +1152,47 @@ class App:
         except OSError as error:
             self.say(f"The new names couldn't be worked out: {error}")
             return
+        if copying and (short := self.files.no_room_to_copy(self.folder, moves)):
+            self.say(short)
+            messagebox.showinfo(TITLE, short, parent=self.root)
+            return
+        if not messagebox.askyesno(TITLE, self.go_question(chosen, copying), parent=self.root):
+            self.say(f"Nothing was {self.verb_done()}.")
+            return
         self.moving_items = {self.rows[i].photo.front: i for i in chosen}
         self.planned = moves
         clues = {self.rows[i].photo.front: self.rows[i].clue for i in chosen}
         printed = {self.rows[i].photo.front: self.stamp_words(self.rows[i]) for i in chosen} \
             if self.print_date.get() else {}
-        self.moving = Moving(self.folder, moves, clues, self.set_taken.get(), printed)
+        self.moving = Moving(self.folder, moves, clues, self.set_taken.get(), printed, copy=copying)
         self.moving.start()
-        self.say(f"Moving {len(chosen)} photo{'s' if len(chosen) != 1 else ''}...")
+        self.update_undo_button()
+        self.say(f"{'Copying' if copying else 'Moving'} {len(chosen)} photo{'s' if len(chosen) != 1 else ''}...")
+
+    def go_question(self, chosen, copying):
+        """What the Step 4 button asks before it starts."""
+        photos = f"{len(chosen)} photo{'s' if len(chosen) != 1 else ''}"
+        backs = sum(1 for i in chosen if self.rows[i].photo.back)
+        if backs:
+            photos += f" (and {backs} back{'s' if backs != 1 else ''})"
+        doing = [part for part, wanted in (("rename", self.rename.get()),
+                                           ("print the date on", self.print_date.get())) if wanted]
+        if copying:
+            question = (f"Copy {photos} into “{self.files.DEST}”, and {' and '.join(doing)} the copies?"
+                        "\n\nThe photos in this folder stay exactly as they are.")
+        else:
+            question = f"{', '.join(doing).capitalize()} and move {photos} into “{self.files.DEST}”?"
+        stay = sum(1 for i in self.order if self.rows[i].state != "done") - len(chosen)
+        if stay:
+            question += f"\n\n{stay} photo{'s' if stay != 1 else ''} without a tick {'is' if stay == 1 else 'are'} " \
+                        "left alone."
+        if self.print_date.get():
+            question += f"\n\nThe date is printed in orange like {self.print_style.get()}" + (
+                "." if copying else f"; an untouched copy of each photo is kept in “{self.files.ORIGINALS}”.")
+        if self.set_taken.get():
+            question += f"\n\nEach {'copy' if copying else 'photo'}'s Date taken will be set to its date."
+        return question + ("\n\nUndo the last copy takes the copies away again if you change your mind." if copying
+                           else "\n\nUndo the last move puts them all back if you change your mind.")
 
     def stamp_words(self, row):
         """What would be printed on this photo: only the parts of its date that are known."""
@@ -1099,9 +1200,11 @@ class App:
 
     def moving_done(self):
         moving, self.moving = self.moving, None
+        did = "copied" if moving.copy else "moved"
         if moving.error:
-            messagebox.showerror(TITLE, "The photos couldn't all be moved:\n\n" + moving.error[-1200:],
+            messagebox.showerror(TITLE, f"The photos couldn't all be {did}:\n\n" + moving.error[-1200:],
                                  parent=self.root)
+            self.list_photos()           # show what did get done before it stopped
             return
         done = moving.result
         failed = {name for name, _ in done.problems}
@@ -1110,19 +1213,21 @@ class App:
             if item is None or not os.path.exists(move.pairs[0][1]):
                 continue
             row = self.rows[item]
-            row.state = "moved"
-            row.ticked = False
-            row.moved_to = os.path.relpath(move.pairs[0][1], self.folder)
+            row.state, row.ticked, row.done_how = "done", False, did
+            row.done_to = os.path.relpath(move.pairs[0][1], self.folder)
             self.refresh_row(item)
         self.show_counts()
         self.show_selected(force=True)
-        words = (f"Moved {done.moved} photo{'s' if done.moved != 1 else ''} into "
-                 f"\u201c{self.files.DEST}\u201d ({done.files} file{'s' if done.files != 1 else ''}).")
+        self.update_undo_button()
+        words = (f"{did.capitalize()} {done.moved} photo{'s' if done.moved != 1 else ''} into "
+                 f"“{self.files.DEST}” ({done.files} file{'s' if done.files != 1 else ''}).")
+        if moving.copy and done.moved:
+            words += " The photos they were copied from haven't been changed."
         if done.problems:
             words += "\n\nProblems:\n" + "\n".join(f"{name}: {why}" for name, why in done.problems[:15])
             if len(done.problems) > 15:
                 words += f"\n...and {len(done.problems) - 15} more"
-        words += "\n\nA list of every move is kept in Dated Photographs\\" + self.files.LOG_NAME + "."
+        words += "\n\nA list of every one is kept in Dated Photographs\\" + self.files.LOG_NAME + "."
         self.say(words.split("\n")[0] + (" Some had problems." if failed else ""))
         messagebox.showinfo(TITLE, words, parent=self.root)
 
@@ -1133,31 +1238,39 @@ class App:
         folder = self.folder
         if not folder:
             folder = filedialog.askdirectory(parent=self.root, mustexist=True,
-                                             title="Pick the folder that holds \u201cDated Photographs\u201d",
+                                             title="Pick the folder that holds “Dated Photographs”",
                                              initialdir=self.settings.get("folder") or pictures_folder())
             if not folder:
                 self.say("Nothing was undone.")
                 return
             folder = os.path.normpath(folder)
             folder = self.above_dated(folder) or folder      # Dated Photographs itself was picked
-        batch = self.files.last_batch(folder)
+        rows = self.files.read_log(folder)
+        batch = self.files.last_batch(folder, rows)
         if batch is None:
             self.say("There's nothing to undo in that folder.")
-            messagebox.showinfo(TITLE, f"There's no move to undo in\n{folder}", parent=self.root)
+            messagebox.showinfo(TITLE, f"There's nothing moved or copied to undo in\n{folder}", parent=self.root)
             return
         if self.log_busy(folder):
             return
-        rows = [r for r in self.files.read_log(folder) if self.files.batch_of(r) == batch]
+        rows = [r for r in rows if self.files.batch_of(r) == batch and not r.get("Undone")]
+        copied = any(self.files.was_copied(r) for r in rows)
         when = rows[0].get("When", "") if rows else ""
-        if not messagebox.askyesno(TITLE, f"Put back the {len(rows)} file{'s' if len(rows) != 1 else ''} moved "
-                                   f"on {when}, with their old names and dates?", parent=self.root):
+        how_many = f"{len(rows)} file{'s' if len(rows) != 1 else ''}"
+        question = (f"Take away the {how_many} copied into “{self.files.DEST}” on {when}? The photos "
+                    "they were copied from stay as they are." if copied else
+                    f"Put back the {how_many} moved on {when}, with their old names and dates?")
+        if not messagebox.askyesno(TITLE, question, parent=self.root):
             self.say("Nothing was undone.")
             return
         try:
             back, problems = self.files.undo_last(folder)
         except Exception as error:
             back, problems = 0, [("Undo", f"stopped with a problem ({error})")]
-        words = f"Put back {back} file{'s' if back != 1 else ''} where they were."
+        if copied:
+            words = f"Took away {back} cop{'ies' if back != 1 else 'y'}. The photos they were copied from are as they were."
+        else:
+            words = f"Put back {back} file{'s' if back != 1 else ''} where they were."
         if problems:
             words += "\n\nProblems:\n" + "\n".join(f"{n}: {w}" for n, w in problems[:15])
             if len(problems) > 15:
@@ -1182,16 +1295,21 @@ class App:
             return
         dest = os.path.join(self.folder, self.files.DEST)
         if not os.path.isdir(dest):
-            self.say("There's no Dated Photographs folder yet: nothing has been moved from this folder.")
+            self.say("There's no Dated Photographs folder yet: nothing has been moved or copied from this "
+                     "folder.")
             return
-        os.startfile(dest)
+        try:
+            os.startfile(dest)
+        except OSError as error:
+            self.say(f"File Explorer couldn't open Dated Photographs ({error}). It is here: {dest}")
+            return
         self.say("Dated Photographs is opening in File Explorer.")
 
     # -- closing
 
     def close(self):
         if self.moving:
-            self.say("Wait a moment: the photos are being moved. Then close.")
+            self.say(self.busy() + " Then close.")
             return
         if self.reading:
             if not messagebox.askyesno(TITLE, "The photos are still being read. Stop and close?",
@@ -1201,9 +1319,10 @@ class App:
             self.reading.stopping.set()
         ticked = sum(1 for i in self.order if self.rows[i].ticked and self.rows[i].state == "read")
         if ticked and not messagebox.askyesno(
-                TITLE, f"{ticked} photo{'s are' if ticked != 1 else ' is'} ticked but not moved yet. "
-                       "Close anyway? (Nothing has been changed.)", parent=self.root):
-            self.say("Not closed. Click Rename and move to move the ticked photos.")
+                TITLE, f"{ticked} photo{'s are' if ticked != 1 else ' is'} ticked but not {self.verb_done()} yet. "
+                       f"Close anyway? ({'They have' if ticked != 1 else 'It has'} not been changed.)",
+                parent=self.root):
+            self.say(f"Not closed. Click {self.go_words()} to {self.verb()} the ticked photos.")
             return
         self.stop_polling()
         self.root.destroy()
@@ -1263,6 +1382,17 @@ def self_test(folder):
             with open(path, "rb") as f:
                 restored = f.read() == before
             lines.append(f"Undo worked: {back == 1 and restored and not problems}")
+            copies = files.new_names([(photo, best.date)], folder)
+            done = files.apply_moves(folder, copies, {photo.front: best}, copy=True)
+            copy = copies[0].pairs[0][1]
+            with open(path, "rb") as f:
+                untouched = f.read() == before
+            lines.append(f"Copied, photo untouched: {done.moved == 1 and untouched and os.path.exists(copy)} "
+                         f"({os.path.relpath(copy, folder)})")
+            lines.append(f"Copy's Date taken set: {files.read_date_taken(copy) == '1998:10:01 12:00:00'}")
+            back, problems = files.undo_last(folder)
+            gone = back == 1 and not problems and not os.path.exists(copy) and os.path.exists(path)
+            lines.append(f"Undo took the copy away: {gone}")
         lines.append(f"Typed date works: {dates.typed_date('Oct 98') is not None}")
     except Exception:
         lines.append("Self-test crashed:\n" + traceback.format_exc())

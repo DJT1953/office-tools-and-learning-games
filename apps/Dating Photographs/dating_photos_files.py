@@ -2,8 +2,9 @@
 
 Finds the pictures in a folder, pairs each front with its back (IMG_0001.jpg
 and IMG_0001_b.jpg), works out new names (1998-10-01.jpg, 1998-10-01 (2).jpg,
-1998-10-01_b.jpg), moves them into "Dated Photographs", keeps a list of every
-move in an Excel-readable file there, and can undo the last batch.
+1998-10-01_b.jpg), moves or copies them into "Dated Photographs", keeps a list
+of every one in an Excel-readable file there, and can undo the last batch
+(a moved photo goes back; a copy is taken away, as its original never changed).
 
 It can also set a photo's "Date taken" (the EXIF DateTimeOriginal that Windows
 and photo programs sort by). In a JPG or TIFF that already has one, only those
@@ -42,8 +43,10 @@ SAVE_EVERY = 20           # files moved between saves of the list, so a crash lo
 BACK = re.compile(r"(?i)^(?P<base>.+?)(?P<suffix>(?:[ _-]+|\s*\()(?:back|reverse|verso|rev|b)\)?)$")
 # A scanner's touched-up copy of the front (Epson FastFoto saves IMG_0001_a)
 COPY = re.compile(r"(?i)^(?P<base>.+?)(?P<suffix>[ _-]a)$")
-LOG_COLUMNS = ["Batch", "When", "Photo before", "Photo now", "Date", "Found from", "Found in",
-               "Date printed", "Original kept", "Old date taken", "Old file dates", "Undone"]
+COPIED, MOVED = "copied", "moved"
+# "Copied or moved" came in 1.1: an older list has none, and its rows were all moved
+LOG_COLUMNS = ["Batch", "When", "Copied or moved", "Photo before", "Photo now", "Date", "Found from",
+               "Found in", "Date printed", "Original kept", "Old date taken", "Old file dates", "Undone"]
 NOON = dt.time(12, 0)     # midday, so no time-zone shift can move the date
 
 
@@ -417,8 +420,8 @@ def day_of(seconds):
 
 @dataclass
 class Done:
-    moved: int = 0                       # photos (fronts) moved
-    files: int = 0                       # files moved, backs included
+    moved: int = 0                       # photos (fronts) moved or copied
+    files: int = 0                       # files moved or copied, backs included
     problems: list = field(default_factory=list)   # (photo name, why)
     batch: int = 0
 
@@ -490,14 +493,37 @@ def save_log(root, rows, tries=4):
     return ""
 
 
-def apply_moves(root, moves, clues, set_date_taken=True, now=None, printed=None):
-    """Move every photo (and its back) to its new name, set its dates if asked,
-    and add each move to the list in "Dated Photographs". clues maps a photo's
-    front path to the Clue its date came from (or None if it was typed).
-    printed maps a front path to the date to print on it ('98 10 12); an
-    untouched copy of each such photo is kept in "Originals (no printed date)".
+SPARE_ROOM = 200 * 1024 * 1024      # left free after copying, so Windows isn't left with a full disk
+
+
+def no_room_to_copy(root, moves):
+    """'' if the disk has room for copies of these photos, or else why not, in words."""
+    try:
+        needed = sum(os.path.getsize(source) for move in moves for source, _ in move.pairs)
+        free = shutil.disk_usage(root).free
+    except OSError:
+        return ""                       # can't tell: let the copying itself say
+    needed = int(needed * 1.1)          # a printed date can make a photo a little bigger
+    if needed + SPARE_ROOM <= free:
+        return ""
+    return (f"There isn't room on this disk to copy them: they need about {megabytes(needed)} and "
+            f"only {megabytes(free)} is free. Free up some room, copy fewer at a time, or move them instead.")
+
+
+def megabytes(size):
+    return f"{size / 1024 ** 3:.1f} GB" if size >= 1024 ** 3 else f"{max(1, round(size / 1024 ** 2))} MB"
+
+
+def apply_moves(root, moves, clues, set_date_taken=True, now=None, printed=None, copy=False):
+    """Move every photo (and its back) to its new name, or with copy=True make a
+    copy there and leave the photo untouched where it is; then set the dates on
+    it (or the copy) if asked, and add each one to the list in "Dated Photographs".
+    clues maps a photo's front path to the Clue its date came from (or None if
+    it was typed). printed maps a front path to the date to print on it
+    ('98 10 12); when moving, an untouched copy of each such photo is kept in
+    "Originals (no printed date)" (a copy's original is untouched already).
     The list is saved as it goes and at the end, whatever happens on the way,
-    so Undo always knows what was moved. If the list is open in Excel, nothing moves."""
+    so Undo always knows what was done. If the list is open in Excel, nothing is."""
     printed = printed or {}
     now = now or dt.datetime.now()
     done = Done()
@@ -509,12 +535,12 @@ def apply_moves(root, moves, clues, set_date_taken=True, now=None, printed=None)
     saved = len(rows)
     try:
         for move in moves:
-            finished = move_group(move, done)
+            finished = (copy_group if copy else move_group)(move, done)
             if not finished:
                 continue
             for source, target in finished:
                 rows.append(finish_move(root, move, source, target, clues.get(move.photo.front), printed,
-                                        set_date_taken, now, done))
+                                        set_date_taken, now, done, copy))
                 done.files += 1
             done.moved += 1
             if len(rows) - saved >= SAVE_EVERY:
@@ -551,41 +577,88 @@ def move_group(move, done):
     return finished
 
 
-def finish_move(root, move, source, target, clue, printed, set_date_taken, now, done):
-    """Print the date and set the dates on one moved file, as asked. Returns its row
-    for the list; a problem on the way is noted in done.problems, but the move
-    is still listed, so Undo can put it back."""
-    row = {"Batch": done.batch, "When": now.strftime("%Y-%m-%d %H:%M"),
+def copy_file(source, target):
+    """Copy a file to a new name, its dates and all. It never replaces a file that's
+    there, and a half-made copy never stays behind (it is made under another name
+    first, and only named when whole)."""
+    temp = target + TEMP_ENDING
+    if os.path.exists(temp):             # left by a copy that was cut off
+        remove_file(temp)
+    try:
+        shutil.copy2(source, temp)
+        os.rename(temp, target)          # never replaces a file that's there
+    except BaseException:
+        try:
+            if os.path.exists(temp):
+                remove_file(temp)
+        except OSError:
+            pass                         # the real reason is the one worth reporting
+        raise
+
+
+def copy_group(move, done):
+    """Copy a photo's files to their new names, all or none: [(from, to)], or []
+    (with the reason added to done.problems) if any couldn't be copied. The
+    photo itself is never changed."""
+    finished = []
+    try:
+        for source, target in move.pairs:
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            copy_file(source, target)
+            finished.append((source, target))
+    except Exception as error:
+        for _, target in reversed(finished):            # take away the copies already made
+            try:
+                remove_file(target)
+            except OSError:
+                pass
+        done.problems.append((move.photo.name(), why(error)))
+        return []
+    return finished
+
+
+def finish_move(root, move, source, target, clue, printed, set_date_taken, now, done, copy=False):
+    """Print the date and set the dates on one moved (or copied) file, as asked.
+    Returns its row for the list; a problem on the way is noted in done.problems,
+    but the file is still listed, so Undo can put it back (or take the copy away)."""
+    row = {"Batch": done.batch, "When": now.strftime("%Y-%m-%d %H:%M"), "Copied or moved": COPIED if copy else MOVED,
            "Photo before": os.path.relpath(source, root), "Photo now": os.path.relpath(target, root),
            "Date": move.date.isoformat(), "Found from": clue.words if clue else "typed in",
            "Found in": clue.where if clue else "", "Date printed": "", "Original kept": "",
            "Old date taken": "-", "Old file dates": "", "Undone": ""}
     name = os.path.basename(target)
+    done_word = row["Copied or moved"]
     try:
         row["Old file dates"] = "{:.3f};{:.3f}".format(*file_dates(target))
         if source == move.photo.front and printed.get(source):
-            kept, problem = print_on(target, printed[source])
+            kept, problem = print_on(target, printed[source], keep_original=not copy)
             if problem:
                 done.problems.append((name, problem))
             else:
                 row["Date printed"] = printed[source]
-                row["Original kept"] = os.path.relpath(kept, root)
+                row["Original kept"] = os.path.relpath(kept, root) if kept else ""
         if set_date_taken:
-            row["Old date taken"], problem = stamp_date(target, move.date)
+            row["Old date taken"], problem = stamp_date(target, move.date, done_word)
             if problem:
                 done.problems.append((name, problem))
     except Exception as error:
-        done.problems.append((name, f"moved, but not finished ({why(error)})"))
+        done.problems.append((name, f"{done_word}, but not finished ({why(error)})"))
     return row
 
 
-def print_on(path, text):
-    """Keep an untouched copy of the photo in "Originals (no printed date)", then
-    print the date on it. Returns (path of the copy or '', problem or '')."""
+def print_on(path, text, keep_original=True):
+    """Keep an untouched copy of the photo in "Originals (no printed date)" (unless
+    keep_original is False: a copy's original is still where it was), then print
+    the date on it. Returns (path of the untouched copy or '', problem or '')."""
     import dating_photos_stamp as stamp
     problem = stamp.why_not(path)
     if problem:
         return "", problem
+    if not keep_original:
+        try:
+            return "", stamp.print_date(path, text)
+        except Exception as error:
+            return "", f"the date couldn't be printed ({why(error)})"
     folder = os.path.join(os.path.dirname(path), ORIGINALS)
     copy = ""
     try:
@@ -609,9 +682,9 @@ def print_on(path, text):
     return copy, ""
 
 
-def stamp_date(path, date):
-    """Set a moved file's Date taken and file dates. Returns (old date taken as
-    stored, problem or ''). "-" means the date taken wasn't changed."""
+def stamp_date(path, date, done_word=MOVED):
+    """Set a moved (or copied) file's Date taken and file dates. Returns (old date
+    taken as stored, problem or ''). "-" means the date taken wasn't changed."""
     old_taken = "-"
     problem = ""
     if can_set_date_taken(path):
@@ -620,12 +693,12 @@ def stamp_date(path, date):
             if write_date_taken(path, exif_text(date)):
                 old_taken = before or ""
         except Exception as error:
-            problem = f"moved, but its Date taken couldn't be set ({why(error)})"
+            problem = f"{done_word}, but its Date taken couldn't be set ({why(error)})"
     try:
         noon = seconds_at_noon(date)
         set_file_dates(path, noon, noon)
     except OSError as error:
-        problem = problem or f"moved, but its file dates couldn't be set ({why(error)})"
+        problem = problem or f"{done_word}, but its file dates couldn't be set ({why(error)})"
     return old_taken, problem
 
 
@@ -646,10 +719,25 @@ def last_batch(root, rows=None):
     return max(batches) if batches else None
 
 
+def was_copied(row):
+    return (row.get("Copied or moved") or "").strip().lower() == COPIED
+
+
+def last_batch_copied(root, rows=None):
+    """True if the last batch not undone was copied, False if it was moved, None if
+    there is nothing to undo."""
+    rows = read_log(root) if rows is None else rows
+    batch = last_batch(root, rows)
+    if batch is None:
+        return None
+    return any(was_copied(r) for r in rows if batch_of(r) == batch and not r.get("Undone"))
+
+
 def undo_last(root, now=None):
-    """Move the last batch back to where and what it was, with its old dates.
-    Returns (files put back, [(name, problem or note)]). If the list is open in
-    Excel, nothing is done: the list couldn't record that the photos went back."""
+    """Move the last batch back to where and what it was, with its old dates; if
+    it was copied, take the copies away (their originals never changed). Returns
+    (files put back or copies taken away, [(name, problem or note)]). If the list
+    is open in Excel, nothing is done: the list couldn't record it."""
     now = now or dt.datetime.now()
     if log_in_use(root):
         return 0, [(LOG_NAME, LOG_BUSY)]
@@ -665,6 +753,13 @@ def undo_last(root, now=None):
                 continue
             before = os.path.join(root, row["Photo before"])
             now_at = os.path.join(root, row["Photo now"])
+            if was_copied(row):
+                there = os.path.exists(now_at)
+                if take_copy_away(row, before, now_at, problems):
+                    row["Undone"] = now.strftime("%Y-%m-%d %H:%M")
+                    folders.add(os.path.dirname(now_at))
+                    back += there              # a copy already gone wasn't taken away now
+                continue
             if not os.path.exists(now_at):
                 problems.append((row["Photo now"], f"couldn't be put back: it is no longer in {DEST}"))
                 continue
@@ -697,6 +792,44 @@ def undo_last(root, now=None):
                 break
             folder = os.path.dirname(folder)
     return back, problems
+
+
+def take_copy_away(row, before, now_at, problems):
+    """Delete one listed copy, but only while the photo it was copied from is still
+    where it was: otherwise the copy may be the only one left, so it stays.
+    Returns True if the row is finished with (taken away, or already gone)."""
+    if not os.path.exists(now_at):
+        problems.append((row["Photo now"], f"was already gone from {DEST}"))
+        return True
+    if not os.path.exists(before):
+        problems.append((row["Photo now"], f"was kept: the photo it was copied from, {row['Photo before']}, "
+                                           "is no longer there, so this copy may be the only one"))
+        return False
+    try:
+        remove_file(now_at)
+    except OSError as error:
+        problems.append((row["Photo now"], f"couldn't be taken away ({why(error)})"))
+        return False
+    return True
+
+
+def copied_already(root):
+    """{photo (its path, as os.path.normcase gives it): (where its copy is, its date)}
+    for every photo copied into "Dated Photographs" and not undone, whose copy is
+    still there: so it isn't copied a second time by mistake."""
+    found = {}
+    for row in read_log(root):
+        # a list changed by hand in Excel may have empty cells, or columns gone
+        if not was_copied(row) or row.get("Undone") or not row.get("Photo now") or not row.get("Photo before"):
+            continue
+        if os.path.exists(os.path.join(root, row["Photo now"])):
+            try:
+                date = dt.date.fromisoformat(row.get("Date") or "")
+            except ValueError:
+                date = None
+            found[os.path.normcase(os.path.normpath(os.path.join(root, row["Photo before"])))] = \
+                (row["Photo now"], date)
+    return found
 
 
 def put_back(root, row, before, now_at, folders):

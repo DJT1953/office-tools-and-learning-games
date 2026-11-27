@@ -4,8 +4,9 @@ DATING PHOTOGRAPHS - how to use it
 WHAT IT DOES
   Reads the dates written on your old photos - on the front, the white border,
   or the back - and renames each photo by its date, like 1998-10-01.jpg, in a
-  folder called "Dated Photographs" inside the folder you pick. Sorted by name,
-  your photos are then in date order. It can also print the date on each
+  folder called "Dated Photographs" inside the folder you pick. You choose
+  whether the photos are moved there, or copied there and left untouched where
+  they are. Sorted by name, your photos are then in date order. It can also print the date on each
   photo in orange, the way a film camera did.
   It reads handwriting as well as print, and the orange date a film camera
   prints in the corner. Everything happens on this computer: nothing is uploaded.
@@ -13,11 +14,18 @@ WHAT IT DOES
   How dates are understood:
     Oct-98, 98-Oct, Oct '98, October 1998 ...... 1998-10-01 (no day: the 1st)
     June 12, 1975 / 12 June 1975 / 6/12/75 ..... 1975-06-12
+    1881 October 14 / 1914 08 20 ............... 1881-10-14 / 1914-08-20
     '98 10 12 (a camera's printed date) ........ 1998-10-12
     Christmas 1987 / Easter 1979 ............... 1987-12-25 / 1979-04-15
     Summer '82 ................................. 1982-07-01 (Spring Apr, Fall Oct, Winter Jan)
     1998 or '98 alone .......................... 1998-01-01
   Two-digit years after this year's (like '27) are taken as the 1900s.
+  Birth, death and wedding dates are trusted less than the photo's own
+  date, so "~1895  Samuel Harlow (04/22/1833 to 09/14/1899)" gives 1895,
+  and "1914 08 20 ... b: 03-20-1914 d: 07-11-1936" gives 1914-08-20. A
+  date counts as one after b:, d:, born, died or married, or at either
+  end of "1833 to 1899". Such a date is still offered if it is the only
+  one, marked "check this".
 
 START IT
   Double-click Run_DatingPhotos.bat (or a shortcut to it).
@@ -40,13 +48,23 @@ DATE YOUR PHOTOS
          1998 all work) and click "Use this date" or press Enter;
        - "Other dates found" lists any other dates in the writing;
        - "Skip this photo" leaves it where it is.
-     Only ticked photos are moved. Click a tick to untick it.
+     Only ticked photos are moved (or copied). Click a tick to untick it.
      Dates in orange say "check this": the writing was hard to read, so they
      start unticked. Photos in red had no date found.
   4. Pick what to do with the dates, then click the big button (its words
-     follow your choices: "Rename and move", "Print dates and move" or
-     "Rename, print dates, move"). It asks first, then moves the ticked photos
-     into "Dated Photographs". Photos without a date stay where they are.
+     follow your choices: "Rename and move", "Print dates and copy",
+     "Rename, print dates, move" and so on). It asks first, then moves or
+     copies the ticked photos into "Dated Photographs". Photos without a date
+     are left alone.
+       - "The photos: Move them" takes them out of the folder you picked and
+         puts them, renamed, in "Dated Photographs".
+         "Copy them" leaves every photo in your folder exactly as it was and
+         puts renamed copies in "Dated Photographs"; only the copies get the
+         printed date and the Date taken. Copies need room on the disk: if
+         there isn't enough, it says so before starting. A photo copied once
+         shows as "copied" in the list, even on another day, so it isn't
+         copied twice by mistake. To copy or move it again, undo that copy,
+         or delete its copy from Dated Photographs and pick the folder again.
        - "Rename each photo by its date" (on to start with): 1998-10-01.jpg.
          A photo's back goes with it (1998-10-01_b.jpg). Two photos from the
          same day become 1998-10-01.jpg and 1998-10-01 (2).jpg.
@@ -56,8 +74,9 @@ DATE YOUR PHOTOS
          white border. Pick how it looks: '98 10 12, 10 12 '98 or 1998-10-12.
          Only what is known is printed: a photo dated "Oct-98" gets '98 10.
          The photo on the right shows how it will look before you move it.
-         An untouched copy of each photo is kept in Dated Photographs\
-         "Originals (no printed date)", and Undo puts that copy back.
+         When moving, an untouched copy of each photo is kept in Dated
+         Photographs\"Originals (no printed date)", and Undo puts that copy
+         back. When copying, your photo itself is the untouched one.
          (JPG, PNG, TIFF, BMP and WebP only; not on backs.)
        - "Set each photo's Date taken to its date" (on to start with): writes
          the date into the photo's information, so Windows Photos and other
@@ -66,10 +85,14 @@ DATE YOUR PHOTOS
        - "Put them in a folder for each year": Dated Photographs\1998\...
 
   Changed your mind? "Undo the last move" puts the last batch back, with their
-  old names and dates. "Open Dated Photographs" shows the folder.
-  Every move is listed in Dated Photographs\Dating Photographs log.csv,
-  which opens in Excel. Close it in Excel before moving or undoing: while it
-  is open, the program can't add to the list, so it stops and tells you.
+  old names and dates. After copying, the button says "Undo the last copy":
+  it deletes those copies, and your photos stay as they are. (A copy whose
+  photo is no longer in your folder is kept, as it may be the only one.)
+  "Open Dated Photographs" shows the folder.
+  Every move and copy is listed in Dated Photographs\Dating Photographs
+  log.csv, which opens in Excel. Close it in Excel before moving, copying or
+  undoing: while it is open, the program can't add to the list, so it stops
+  and tells you.
   To date more photos later, pick the folder your photos are in, not
   "Dated Photographs" itself.
 
@@ -77,8 +100,8 @@ FOR GOOD RESULTS
   - Scan at 300 dpi or more. Faint pencil reads better on a darker scan.
   - JPG, PNG, TIFF, BMP, GIF and WebP pictures all work. iPhone HEIC photos
     can't be opened: save them as JPG first.
-  - Handwriting can be misread: check the dates before moving, especially the
-    orange "check this" ones.
+  - Handwriting can be misread: check the dates before moving or copying,
+    especially the orange "check this" ones.
 
 WHAT IT NEEDS
   1. Windows 10 or 11.

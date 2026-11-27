@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from PIL import Image, UnidentifiedImageError
 
@@ -88,8 +88,7 @@ def agree(found):
     out = []
     for clue in merged:
         if len(readers.get(clue.date, ())) > 1:
-            clue = dates.Clue(clue.date, clue.kind, clue.words, round(min(1.0, clue.score + AGREE_BONUS), 4),
-                              clue.where, clue.box)
+            clue = replace(clue, score=round(min(1.0, clue.score + AGREE_BONUS), 4))
         out.append(clue)
     return sorted(out, key=lambda c: (-c.score, -dates.EXACTNESS[c.kind]))
 
