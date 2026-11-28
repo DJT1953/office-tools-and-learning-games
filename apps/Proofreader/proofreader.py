@@ -150,6 +150,22 @@ def parse_words(text):
     return words
 
 
+def first_size(window, width, height):
+    """width x height, but smaller on a small screen, and in its middle, so no part is
+    under the taskbar (a 1366 x 768 laptop has 728 pixels above it)."""
+    screen = window.screen()
+    if screen is None:
+        window.resize(width, height)
+        return
+    room = screen.availableGeometry()
+    width = min(width, room.width() - 16)               # its left and right borders
+    height = min(height, room.height() - 40)            # its title bar and borders
+    window.resize(width, height)
+    width, height = window.width(), window.height()     # never smaller than its smallest
+    window.move(room.x() + max(0, (room.width() - width - 16) // 2),
+                room.y() + max(0, (room.height() - height - 40) // 2))
+
+
 class Worker(QThread):
     """Does the proofreading away from the window so it stays responsive."""
     step = Signal(int, int, str)        # done, total, what is happening
@@ -398,7 +414,7 @@ class Window(QWidget):
         self.open_report_button = self.button("Open the report", self.open_report, after)
         after.addStretch(1)
         outer.addLayout(after)
-        self.resize(980, 860)
+        first_size(self, 980, 860)
 
     def button(self, text, action, layout):
         button = QPushButton(text)

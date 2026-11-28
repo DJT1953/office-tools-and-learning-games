@@ -36,7 +36,7 @@ import tkinter as tk
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
 TITLE = "Dating Photographs"
-VERSION = "1.1.0"      # the Setup's AppVersion must match (test_the_version_matches_the_setup)
+VERSION = "1.1.1"      # the Setup's AppVersion must match (test_the_version_matches_the_setup)
 # The "Check for updates" button opens this page, which has the newest version of every program.
 UPDATES_PAGE = "https://djt1953.github.io/office-tools-and-learning-games/"
 NEEDS = {   # module: (pip name, what it's for, size in MB)
@@ -136,6 +136,14 @@ def sharp_on_big_screens():
         ctypes.windll.shcore.SetProcessDpiAwareness(2)
     except (AttributeError, OSError):
         pass
+
+
+def half_of(space):
+    """Half of a Tk padding or pady: 6 -> 3, (0, 8) -> (0, 4), "10" -> 5."""
+    parts = [int(float(str(p))) for p in (space if isinstance(space, (tuple, list)) else str(space).split())]
+    if not parts:
+        return 0
+    return tuple(p // 2 for p in parts) if len(parts) > 1 else parts[0] // 2
 
 
 def set_icon(root):
@@ -506,6 +514,8 @@ class App:
         root = self.root
         root.update_idletasks()
         room = root.winfo_screenheight() - int(110 * root.winfo_fpixels("1i") / 96)
+        if self.smallest_height() > room:     # a 1366 x 768 laptop, or 1920 x 1080 at 150%
+            self.tighten()
         rows = int(self.tree.cget("height"))
         while root.winfo_reqheight() > room and rows > 4:
             rows -= 1
@@ -517,6 +527,37 @@ class App:
         root.geometry(f"{width}x{height}+{max(0, (root.winfo_screenwidth() - width) // 2)}"
                       f"+{max(0, (room - height) // 2)}")
         root.minsize(min(width, int(980 * scale)), min(height, root.winfo_reqheight()))
+
+    def smallest_height(self):
+        """The window height that still shows every line and button, with the photo and the
+        list as small as a short screen lets them get (Tk adds it all up)."""
+        photo, rows = self.canvas.cget("height"), self.tree.cget("height")
+        self.canvas.configure(height=1)
+        self.tree.configure(height=1)
+        self.root.update_idletasks()
+        needed = self.root.winfo_reqheight()
+        self.canvas.configure(height=photo)
+        self.tree.configure(height=rows)
+        self.root.update_idletasks()
+        return needed
+
+    def tighten(self):
+        """For a short screen: half the space around and between things, so every step,
+        line and button still fits. Nothing is left out."""
+        ttk.Style(self.root).configure("Big.TButton", padding=(12, 5))
+        widgets = [self.root]
+        while widgets:
+            widget = widgets.pop()
+            widgets.extend(widget.winfo_children())
+            if widget.winfo_class() == "TLabelframe":
+                widget.configure(padding=6)
+            elif widget.winfo_class() == "TFrame" and str(widget.cget("padding")):
+                widget.configure(padding=half_of(widget.cget("padding")))
+            manager = widget.winfo_manager()
+            if manager in ("grid", "pack"):
+                info = widget.grid_info() if manager == "grid" else widget.pack_info()
+                pady = half_of(info.get("pady", 0))
+                (widget.grid_configure if manager == "grid" else widget.pack_configure)(pady=pady)
 
     def bring_to_front(self):
         self.root.deiconify()

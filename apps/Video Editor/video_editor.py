@@ -624,7 +624,7 @@ class EditorWindow(QMainWindow):
         if geometry is not None:
             self.restoreGeometry(geometry)
         else:
-            self.resize(1340, 820)
+            vp.first_size(self, 1340, 820)
 
     def folder(self, key, fallback):
         folder = self.settings.value(key, "")

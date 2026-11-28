@@ -132,6 +132,7 @@ CHUNK = 1024 * 1024          # read big files 1 MB at a time
 EDGE = 64 * 1024             # quick check: first and last 64 KB
 REVIEW_NAME = "Duplicates_To_Review"
 LOG_NAME = "move_log.csv"
+CHANGED_BY_HAND = "its line in move_log.csv was changed by hand, so where it goes is not known"
 LOG_FIELDS = ["run_id", "when", "mode", "moved_from", "moved_to", "kept_file", "match", "undone"]
 TEXT_EXTS = {".txt", ".md", ".csv", ".tsv", ".log", ".htm", ".html", ".xml", ".json", ".ini",
              ".cfg", ".yaml", ".yml", ".py", ".js", ".css", ".bat", ".ps1", ".sql", ".srt", ".vtt"}
@@ -1344,7 +1345,8 @@ def read_log(log_path):
 def write_log(log_path, rows):
     tmp = log_path + ".tmp"
     with open(tmp, "w", newline="", encoding="utf-8-sig") as f:
-        w = csv.DictWriter(f, fieldnames=LOG_FIELDS)
+        # a note typed in an extra cell in Excel comes back under the key None: leave it out
+        w = csv.DictWriter(f, fieldnames=LOG_FIELDS, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
     os.replace(tmp, log_path)
@@ -1403,17 +1405,22 @@ def undo_last_move(root):
     if log_in_use(log_path):
         raise LogBusy(log_path)
     rows = read_log(log_path)
-    pending = [r for r in rows if r.get("undone") != "1"]
+    # A row cut short in Excel has None in its missing cells, not "". Such a row can't
+    # pick the move to undo, or it would hold back the older moves for ever.
+    pending = [r for r in rows if r.get("undone") != "1" and r.get("moved_to") and r.get("moved_from")]
     if not pending:
         return None
-    run_id = pending[-1]["run_id"]
+    run_id = pending[-1].get("run_id")
     restored = missing = renamed = 0
     failed = []
     try:
         for r in rows:
-            if r["run_id"] != run_id or r.get("undone") == "1":
+            if r.get("run_id") != run_id or r.get("undone") == "1":
                 continue
-            src, dst = r["moved_to"], r["moved_from"]
+            src, dst = r.get("moved_to"), r.get("moved_from")
+            if not src or not dst:
+                failed.append((src or dst or LOG_NAME, CHANGED_BY_HAND))
+                continue
             if not os.path.isfile(src):
                 r["undone"] = "1"          # someone already removed it from the review folder
                 missing += 1

@@ -122,6 +122,7 @@ SKIP_DIR_NAMES = {"$recycle.bin", "system volume information", REMOVED_DIR.lower
 SAME_TIME_SECONDS = 2.0       # dates this close count as the same (USB drives round to 2 s)
 MOVE_LOG_FIELDS = ["status", "original place", "moved to", "kept copy", "rule"]
 MOVED, PUT_BACK = "moved", "put back"
+CHANGED_BY_HAND = "its line in the list of moved files was changed by hand, so where it goes is not known"
 MATCH_CHOICES = ["95%", "90%", "85%", "80%"]
 FLOOR = 80.0                  # scan once at this level; the dropdown filters the list
 HASH_SIZE = 16
@@ -628,7 +629,11 @@ def undo_moves(logs):
         for row in rows:
             if row.get("status") != MOVED:
                 continue
-            src, dst = row["moved to"], row["original place"]
+            # A row cut short in Excel has None in its missing cells, not ""
+            src, dst = row.get("moved to"), row.get("original place")
+            if not src or not dst:
+                problems.append((dst or src or os.path.basename(log), CHANGED_BY_HAND))
+                continue
             if not os.path.lexists(src):
                 problems.append((dst, "it is no longer in %s" % os.path.dirname(src)))
                 continue

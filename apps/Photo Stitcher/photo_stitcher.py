@@ -30,7 +30,7 @@ import tkinter as tk
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
 TITLE = "Photo Stitcher"
-VERSION = "1.0"
+VERSION = "1.0.2"    # the Setup's AppVersion must match (test_the_version_matches_the_setup)
 # The "Check for updates" button opens this page, which has the newest version of every program.
 UPDATES_PAGE = "https://djt1953.github.io/office-tools-and-learning-games/"
 NEEDS = {   # module: (pip name, what it's for, size in MB)
