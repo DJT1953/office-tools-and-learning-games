@@ -8,7 +8,7 @@ You may download and use everything here for free, but do not modify or redistri
 
 ## Learning games
 
-The games speak out loud and run in a web browser, with nothing to install. Turn the sound on. They were built for adults practicing remedial reading and everyday money/counting skills. Each has a coach panel for adults adjusting the lessons, and progress stays in that browser on that computer.
+The games speak out loud and run in a web browser, with nothing to install. Turn the sound on. They were built for developing adults practicing remedial reading and everyday money/counting skills. Each has a coach panel for adults adjusting the lessons, and progress stays in that browser on that computer.
 
 | Game | Practice | Play |
 |---|---|---|
